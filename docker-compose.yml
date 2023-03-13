@@ -1,0 +1,236 @@
+services:
+  credentials:
+    container_name: credentials
+    command:
+      - "/bin/sh"
+      - "/scripts/make_credentials.sh"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      - PGPASSWORD=rootpass
+    image: ubuntu:kinetic
+    volumes:
+      - ./scripts:/scripts
+      - shared:/shared
+
+  data_loader:
+    container_name: data_loader
+    command:
+      - "/bin/sh"
+      - "/load_data.sh"
+    depends_on:
+      s3inbox:
+        condition: service_started
+    image: python:3.10-alpine
+    volumes:
+      - ./scripts/load_data.sh:/load_data.sh
+      - shared:/shared
+
+  rabbitmq:
+    container_name: rabbitmq
+    environment:
+      - MQ_PASSWORD_HASH=C5ufXbYlww6ZBcEqDUB04YdUptO81s+ozI3Ll5GCHTnv8NAm
+      - MQ_USER=test
+      - MQ_VHOST=gdi
+      - NOTLS=true
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "bash",
+          "-c",
+          "rabbitmq-diagnostics -q check_running && rabbitmq-diagnostics -q check_local_alarms"
+        ]
+      interval: 5s
+      timeout: 20s
+      retries: 3
+    image: ghcr.io/neicnordic/sda-mq:v1.4.28
+    ports:
+      - 15672:15672
+    restart: always
+
+  postgres:
+    container_name: postgres
+    environment:
+      - DB_LEGA_IN_PASSWORD=lega_in
+      - DB_LEGA_OUT_PASSWORD=.
+      - POSTGRES_PASSWORD=rootpass
+      - NOTLS=true
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "pg_isready",
+          "-h",
+          "localhost",
+          "-U",
+          "postgres"
+        ]
+      interval: 5s
+      timeout: 20s
+      retries: 3
+    image: ghcr.io/neicnordic/sda-db:v2.1.1
+    restart: always
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  s3:
+    command: server /data  --console-address ":9001"
+    container_name: s3
+    environment:
+      - MINIO_ROOT_USER=access
+      - MINIO_ROOT_PASSWORD=secretkey
+      - MINIO_SERVER_URL=http://127.0.0.1:9000
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "curl",
+          "-fq",
+          "http://localhost:9000/minio/health/live"
+        ]
+      interval: 5s
+      timeout: 20s
+      retries: 3
+    image: minio/minio:RELEASE.2023-02-10T18-48-39Z
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    restart: always
+    volumes:
+      - s3data:/data
+
+  ## data inget pipeline
+  finalize:
+    command: sda-finalize
+    container_name: finalize
+    depends_on:
+      credentials:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      s3:
+        condition: service_healthy
+    environment:
+      - BROKER_PASSWORD=finalize
+      - BROKER_QUEUE=accessionIDs
+      - BROKER_ROUTINGKEY=completed
+      - BROKER_USER=finalize
+      - DB_PASSWORD=finalize
+      - DB_USER=finalize
+    image: ghcr.io/neicnordic/sda-pipeline:v0.4.7
+    restart: always
+    volumes:
+      - ./config/config.yaml:/config.yaml
+
+  ingest:
+    command: sda-ingest
+    container_name: ingest
+    depends_on:
+      credentials:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      s3:
+        condition: service_healthy
+    environment:
+      - BROKER_PASSWORD=ingest
+      - BROKER_QUEUE=ingest
+      - BROKER_ROUTINGKEY=archived
+      - BROKER_USER=ingest
+      - DB_PASSWORD=lega_in
+      - DB_USER=lega_in
+      - SCHEMA_TYPE=federated
+    image: ghcr.io/neicnordic/sda-pipeline:v0.4.7
+    restart: always
+    volumes:
+      - ./config/config.yaml:/config.yaml
+      - shared:/shared
+
+  mapper:
+    command: sda-mapper
+    container_name: mapper
+    depends_on:
+      credentials:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      s3:
+        condition: service_healthy
+    environment:
+      - BROKER_PASSWORD=mapper
+      - BROKER_QUEUE=mappings
+      - BROKER_USER=mapper
+      - DB_PASSWORD=mapper
+      - DB_USER=mapper
+    image: ghcr.io/neicnordic/sda-pipeline:v0.4.7
+    restart: always
+    volumes:
+      - ./config/config.yaml:/config.yaml
+
+  verify:
+    command: sda-verify
+    container_name: verify
+    depends_on:
+      credentials:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      s3:
+        condition: service_healthy
+    environment:
+      - BROKER_PASSWORD=verify
+      - BROKER_QUEUE=archived
+      - BROKER_ROUTINGKEY=verified
+      - BROKER_USER=verify
+      - DB_PASSWORD=verify
+      - DB_USER=verify
+      - SCHEMA_TYPE=federated
+    image: ghcr.io/neicnordic/sda-pipeline:v0.4.7
+    restart: always
+    volumes:
+      - ./config/config.yaml:/config.yaml
+      - shared:/shared
+
+  s3inbox:
+    command: sda-s3inbox
+    container_name: s3inbox
+    depends_on:
+      credentials:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      s3:
+        condition: service_healthy
+    environment:
+      - BROKER_PASSWORD=inbox
+      - BROKER_ROUTINGKEY=inbox
+      - BROKER_USER=inbox
+      - DB_PASSWORD=inbox
+      - DB_USER=inbox
+      - SERVER_CONFFILE=/config.yaml
+    image: ghcr.io/neicnordic/sda-s3proxy:v0.2.19
+    ports:
+      - "8000:8000"
+    restart: always
+    volumes:
+      - ./config/config.yaml:/config.yaml
+      - shared:/shared
+
+volumes:
+  pgdata:
+  shared:
+  s3data:
