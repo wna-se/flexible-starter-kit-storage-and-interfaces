@@ -12,6 +12,8 @@ services:
     environment:
       - PGPASSWORD=rootpass
     image: ubuntu:kinetic
+    networks:
+      - secure
     volumes:
       - ./scripts:/scripts
       - shared:/shared
@@ -25,6 +27,8 @@ services:
       s3inbox:
         condition: service_started
     image: python:3.10-alpine
+    networks:
+      - secure
     volumes:
       - ./scripts/load_data.sh:/load_data.sh
       - shared:/shared
@@ -43,6 +47,8 @@ services:
       credentials:
         condition: service_completed_successfully
     image: python:3.10-slim
+    networks:
+      - public
     ports:
       - "8080:8080"
     restart: always
@@ -70,6 +76,8 @@ services:
       timeout: 20s
       retries: 3
     image: ghcr.io/neicnordic/sda-mq:v1.4.28
+    networks:
+      - secure
     ports:
       - 15672:15672
     restart: always
@@ -95,6 +103,8 @@ services:
       timeout: 20s
       retries: 3
     image: ghcr.io/neicnordic/sda-db:v2.1.1
+    networks:
+      - secure
     restart: always
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -118,6 +128,8 @@ services:
       timeout: 20s
       retries: 3
     image: minio/minio:RELEASE.2023-02-10T18-48-39Z
+    networks:
+      - secure
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -140,6 +152,9 @@ services:
       - DB_PASSWORD=download
       - DB_USER=download
     image: ghcr.io/neicnordic/sda-download:v1.8.7
+    networks:
+      - public
+      - secure
     ports:
       - 8443:8443
     restart: always
@@ -167,6 +182,8 @@ services:
       - DB_PASSWORD=finalize
       - DB_USER=finalize
     image: ghcr.io/neicnordic/sda-pipeline:v0.4.7
+    networks:
+      - secure
     restart: always
     volumes:
       - ./config/config.yaml:/config.yaml
@@ -192,6 +209,8 @@ services:
       - DB_USER=lega_in
       - SCHEMA_TYPE=federated
     image: ghcr.io/neicnordic/sda-pipeline:v0.4.7
+    networks:
+      - secure
     restart: always
     volumes:
       - ./config/config.yaml:/config.yaml
@@ -216,6 +235,8 @@ services:
       - DB_PASSWORD=mapper
       - DB_USER=mapper
     image: ghcr.io/neicnordic/sda-pipeline:v0.4.7
+    networks:
+      - secure
     restart: always
     volumes:
       - ./config/config.yaml:/config.yaml
@@ -241,6 +262,8 @@ services:
       - DB_USER=verify
       - SCHEMA_TYPE=federated
     image: ghcr.io/neicnordic/sda-pipeline:v0.4.7
+    networks:
+      - secure
     restart: always
     volumes:
       - ./config/config.yaml:/config.yaml
@@ -266,6 +289,9 @@ services:
       - DB_USER=inbox
       - SERVER_CONFFILE=/config.yaml
     image: ghcr.io/neicnordic/sda-s3proxy:v0.2.19
+    networks:
+      - public
+      - secure
     ports:
       - "8000:8000"
     restart: always
@@ -277,3 +303,7 @@ volumes:
   pgdata:
   shared:
   s3data:
+
+networks:
+  public:
+  secure:
