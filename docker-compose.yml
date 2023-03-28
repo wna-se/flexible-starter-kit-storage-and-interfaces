@@ -126,6 +126,27 @@ services:
       - s3data:/data
 
   ## data inget pipeline
+  download:
+    command: sda-download
+    container_name: download
+    depends_on:
+      credentials:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      s3:
+        condition: service_healthy
+    environment:
+      - DB_PASSWORD=download
+      - DB_USER=download
+    image: ghcr.io/neicnordic/sda-download:v1.8.7
+    ports:
+      - 8443:8443
+    restart: always
+    volumes:
+      - ./config/config.yaml:/config.yaml
+      - ./config/iss.json:/iss.json
+      - shared:/shared
   finalize:
     command: sda-finalize
     container_name: finalize

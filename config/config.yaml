@@ -1,3 +1,7 @@
+app: # this is for download
+  host: "0.0.0.0"
+  port: "8443"
+
 archive:
   type: "s3"
   url: "http://s3"
@@ -53,9 +57,35 @@ log:
   level: "debug"
   format: "json"
 
+oidc:
+  # oidc configuration API must have values for "userinfo_endpoint" and "jwks_uri"
+  cacert: "/shared/cert/ca.crt"
+  configuration:
+    url: "https://oidc:8080/.well-known/openid-configuration"
+  trusted:
+    iss: "/iss.json"
+
 schema:
   type: isolated
 
 server:
   jwtpubkeypath: "/shared/keys/pub/"
   jwtpubkeyurl: ""
+
+session:
+  # session key expiration time in seconds
+  # default value = -1 for disabled state
+  # a positive integer enables sessions
+  # a negative integer disables sessions
+  expiration: 28800
+  # domain name must be set to the hostname (FQDN) of the service
+  domain: "localhost"
+  # session cookie Secure value, if true, TLS must be active
+  # default value = true
+  secure: true
+  # session cookie HttpOnly value, if true, TLS must be active
+  # default value = true
+  httponly: true
+  # name of session cookie
+  # default value = sda_session_key
+  name: "sda_session_key"
