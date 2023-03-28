@@ -29,6 +29,28 @@ services:
       - ./scripts/load_data.sh:/load_data.sh
       - shared:/shared
 
+### OIDC (LS-AAI in  a box)
+  oidc:
+    command:
+      - /bin/sh
+      - -c
+      - |
+        pip install --upgrade pip
+        pip install aiohttp Authlib
+        python -u /oidc.py
+    container_name: oidc
+    depends_on:
+      credentials:
+        condition: service_completed_successfully
+    image: python:3.10-slim
+    ports:
+      - "8080:8080"
+    restart: always
+    volumes:
+      - ./servers/oidc.py:/oidc.py
+      - shared:/shared
+###
+
   rabbitmq:
     container_name: rabbitmq
     environment:

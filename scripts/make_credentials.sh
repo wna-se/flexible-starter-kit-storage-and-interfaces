@@ -57,3 +57,7 @@ if [ ! -f "/shared/c4gh.sec.pem" ]; then
     curl -s -L https://github.com/neicnordic/crypt4gh/releases/download/v"${C4GH_VERSION}"/crypt4gh_linux_x86_64.tar.gz | tar -xz -C /shared/ && chmod +x /shared/crypt4gh
     /shared/crypt4gh generate -n /shared/c4gh -p c4ghpass
 fi
+
+
+## create TLS certificates
+bash /scripts/certs/make_certs.sh
