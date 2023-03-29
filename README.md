@@ -6,6 +6,12 @@ To boot strap all of this simply run:
 docker compose up -d
 ```
 
+For demonstration purpose with a example dataset use the following command:
+
+```cmd
+ocker compose --profile demo up -d
+```
+
 The files imported by the data loading script comes from here: `https://github.com/ga4gh/htsget-refserver/tree/main/data/gcp/gatk-test-data/wgs_bam`
 
 ## Download unencrypted files directly
