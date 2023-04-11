@@ -2,9 +2,12 @@
 
 set -u
 
+myself=$0
+
 # Default values for global options.
 user=test		# --user username
-capath=.		# --capath dirpath
+pass=$user		# --pass password
+capath=$(dirname "$myself")/certs	# --capath dirpath
 cacert=			# --cacert pathname
 mq_host=mq		# --mq-host hostname
 s3_host=s3		# --s3-host hostname
@@ -13,8 +16,6 @@ s3_secret_key=secretkey	# --s3-secret-key key
 
 # Other variables.
 crypt4gh_release=v1.7.4
-
-myself=$0
 
 cmd_exists () {
 	command -v "$1" >/dev/null 2>&1
@@ -31,16 +32,20 @@ fetch () {
 	fi
 }
 
-install_crypt4gh () {
+crypt4gh_install () {
         # May set $tmpdir, create that directory, and set a trap that
         # deletes that directory on EXIT.  May modify $PATH.
 
 	cmd_exists crypt4gh && return
-	printf 'crypt4gh not found, downloading and installing %s' "$crypt4gh_release" >&2
 
-	tmpdir=${tmpdir:-$(mktemp -d)}
-	trap "rm -rf '$tmpdir'" EXIT
+	tmpdir=${TMPDIR:-/tmp}
 	destdir=$tmpdir/crypt4gh
+
+	PATH=$PATH:$destdir
+	cmd_exists crypt4gh && return
+
+	printf 'crypt4gh not found, downloading and installing %s\n' \
+		"$crypt4gh_release" >&2
 
 	mkdir -p "$destdir" || exit 1
 	printf 'Installation path: %s\n' "$destdir"
@@ -49,21 +54,32 @@ install_crypt4gh () {
 	url=https://github.com/neicnordic/crypt4gh/releases/download/$crypt4gh_release
 
 	fetch "$url/crypt4gh_$arch.tar.gz" | tar -x -z -f - -C "$destdir" || exit 1
-	chmod +x "$destdir/crypt4gh"
 
-	PATH=$PATH:$destdir
+	unset -v tmpdir destdir arch url
+}
 
-	unset -v destdir arch url
+crypt4gh_mkcert () {
+	if [ ! -f "$cacert" ]; then
+		printf 'Certificate not found at %s\n' "$cacert"
+		echo 'Generating new certificate...'
+
+		crypt4gh generate -n "$capath/$user" -p "$pass"
+
+		cacert=${cacert:-$capath/$user.pub.pem}
+	fi >&2
 }
 
 upload () {
-	install_crypt4gh
+	crypt4gh_install
+	crypt4gh_mkcert
 
 	# Encrypt the files and upload them.
-	
+
 	for pathname do
-		crypt4gh encrypt -f "$pathname" -p "$cacert"
-	done
+		if [ ! -f "$pathname.c4gh" ]; then
+			yes | crypt4gh encrypt -f "$pathname" -p "$cacert"
+		fi
+	done >/dev/null
 }
 
 ingest () {
@@ -99,6 +115,7 @@ cat <<-USAGE_GENERAL
 
 	Global options:
 	    --user username		Username		default: $user
+	    --pass password		Password		default: $pass
 	    --capath dirpath		Path to certificates	default: $capath
 	    --cacert pathname		Path to certificate	default: ${cacert:-$capath/$user.pub.pem}
 
@@ -137,6 +154,9 @@ while true; do
 	case ${1-} in
 		--user)
 			user=$2
+			;;
+		--pass)
+			pass=$2
 			;;
 		--capath)
 			capath=$2
