@@ -1,0 +1,10 @@
+[
+    {
+        "iss": "https://oidc:8080/",
+        "jku": "https://oidc:8080/jwk"
+    },
+    {
+        "iss": "http://demo1.example",
+        "jku": "htts://mockauth:8080/jwk"
+    }
+]
