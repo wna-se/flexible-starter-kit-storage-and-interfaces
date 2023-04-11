@@ -2,13 +2,14 @@
 
 C4GH_VERSION="1.7.3"
 
-apt-get -o DPkg::Lock::Timeout=60 update > /dev/null
-apt-get -o DPkg::Lock::Timeout=60 install -y curl postgresql-client openssl > /dev/null
+apt-get -o DPkg::Lock::Timeout=60 update >/dev/null
+apt-get -o DPkg::Lock::Timeout=60 install -y curl jq postgresql-client openssl >/dev/null
 
 for n in download finalize inbox ingest mapper sync verify; do
     echo "creating credentials for: $n"
     ## password and permissions for MQ
-    curl -s -u test:test -X PUT "http://rabbitmq:15672/api/users/$n" -H "content-type:application/json" -d '{"password": "'"$n"'", "tags":"none"}'
+    body_data=$(jq -n -c --arg password "$n" --arg tags none '$ARGS.named')
+    curl -s -u test:test -X PUT "http://rabbitmq:15672/api/users/$n" -H "content-type:application/json" -d "${body_data}"
     curl -s -u test:test -X PUT "http://rabbitmq:15672/api/permissions/gdi/$n" -H "content-type:application/json" -d '{"configure":"","write":"sda","read":".*"}'
 
     ## password and permissions for DB
@@ -34,7 +35,7 @@ fi
 
 token="$(bash /scripts/sign_jwt.sh ES256 /shared/keys/jwt.key)"
 
-cat > /shared/s3cfg << EOD
+cat >/shared/s3cfg <<EOD
 [default]
 access_key=dummy_gdi.eu
 secret_key=dummy_gdi.eu
@@ -57,7 +58,6 @@ if [ ! -f "/shared/c4gh.sec.pem" ]; then
     curl -s -L https://github.com/neicnordic/crypt4gh/releases/download/v"${C4GH_VERSION}"/crypt4gh_linux_x86_64.tar.gz | tar -xz -C /shared/ && chmod +x /shared/crypt4gh
     /shared/crypt4gh generate -n /shared/c4gh -p c4ghpass
 fi
-
 
 ## create TLS certificates
 bash /scripts/certs/make_certs.sh

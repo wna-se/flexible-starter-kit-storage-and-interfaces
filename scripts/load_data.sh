@@ -13,7 +13,7 @@ for file in NA12878.bam NA12878_20k_b37.bam; do
     ENC_MD5=$(md5sum "$file.c4gh" | cut -d' ' -f 1)
     s3cmd -q -c /shared/s3cfg put "$file.c4gh" s3://dummy_gdi.eu/"$file.c4gh"
 
-    ## get correlation id from uload message
+    ## get correlation id from upload message
     CORRID=$(
         curl -s -X POST \
             -H "content-type:application/json" \
@@ -83,7 +83,7 @@ for file in NA12878.bam NA12878_20k_b37.bam; do
         curl -s -u test:test \
             -H "content-type:application/json" \
             -X POST http://rabbitmq:15672/api/queues/gdi/verified/get \
-            -d '{"count":1,"encoding":"auto","ackmode":"ack_requeue_false"}' | jq -r .'[0].payload' | jq -r .'decrypted_checksums|tostring'
+            -d '{"count":1,"encoding":"auto","ackmode":"ack_requeue_false"}' | jq -r '.[0].payload|fromjson|.decrypted_checksums|tostring'
     )
 
     finalize_payload=$(

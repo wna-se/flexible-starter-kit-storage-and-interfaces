@@ -5,25 +5,17 @@
 
 set -o pipefail
 
-apt-get -o DPkg::Lock::Timeout=60 update > /dev/null
-apt-get -o DPkg::Lock::Timeout=60 install -y jq xxd > /dev/null
-
-# Shared content to use as template
-header_template='{
-    "typ": "JWT",
-    "kid": "0001"
-}'
+apt-get -o DPkg::Lock::Timeout=60 update >/dev/null
+apt-get -o DPkg::Lock::Timeout=60 install -y jq xxd >/dev/null
 
 build_header() {
-        jq -c \
-                --arg iat_str "$(date +%s)" \
+        jq -c -n \
                 --arg alg "${1}" \
-                '
-        ($iat_str | tonumber) as $iat
-        | .alg = $alg
-        | .iat = $iat
-        | .exp = ($iat + 86400)
-        ' <<<"$header_template" | tr -d '\n'
+                --argjson exp "${exp}" \
+                --argjson iat "${iat}" \
+                --arg typ "JWT" \
+                --arg kid "001" \
+                '$ARGS.named'
 }
 
 b64enc() { openssl enc -base64 -A | tr '+/' '-_' | tr -d '='; }
@@ -55,20 +47,21 @@ sign() {
         printf '%s.%s\n' "${signed_content}" "${sig}"
 }
 
-iat=$(date +%s)
+iat=$(date --date='yesterday' +%s)
 exp=$(date --date="${3:-tomorrow}" +%s)
 
-test_payload='{
-  "at_hash": "J_fA458SPsXFV6lJQL1l-w",
-  "aud": "XC56EL11xx",
-  "email": "dummy.tester@example.org",
-  "exp": '"$exp"',
-  "iat": '"$iat"',
-  "iss": "http://jwt",
-  "kid": "d87f2d01d1a4abb16e1eb88f6561e5067f3a6430174b8fcd0b6bf61434d6c5c8",
-  "name": "Dummy Tester",
-  "sid": "1ad14eb5-9b51-40c0-a52a-154a5a3792d5",
-  "sub": "dummy@gdi.eu"
-}'
+test_payload=$(
+        jq -c -n \
+                --arg at_hash "J_fA458SPsXFV6lJQL1l-w" \
+                --arg aud "XC56EL11xx" \
+                --argjson exp "$exp" \
+                --argjson iat "$iat" \
+                --arg iss "http://jwt" \
+                --arg kid "d87f2d01d1a4abb16e1eb88f6561e5067f3a6430174b8fcd0b6bf61434d6c5c8", \
+                --arg name "Dummy Tester" \
+                --arg sid "1ad14eb5-9b51-40c0-a52a-154a5a3792d5" \
+                --arg sub "dummy@gdi.eu" \
+                '$ARGS.named'
+)
 
 sign "$@"
