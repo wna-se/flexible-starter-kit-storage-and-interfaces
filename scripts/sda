@@ -54,14 +54,14 @@ crypt4gh_install () {
 }
 
 crypt4gh_mkcert () {
-	if [ ! -f "$cacert" ]; then
-		printf 'Certificate not found at %s\n' "$cacert"
-		echo 'Generating new certificate...'
+	[ -f "$cacert" ] && return
 
-		crypt4gh generate -n "$capath/$user" -p "$pass"
+	printf 'Certificate not found at %s\n' "$cacert" >&2
+	echo 'Generating new certificate...' >&2
 
-		cacert=${cacert:-$capath/$user.pub.pem}
-	fi >&2
+	crypt4gh generate -n "$capath/$user" -p "$pass"
+
+	cacert=${cacert:-$capath/$user.pub.pem}
 }
 
 upload () {
