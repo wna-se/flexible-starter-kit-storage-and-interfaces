@@ -5,7 +5,7 @@ set -u
 myself=$0
 
 # Default values for global options.
-user=test		# --user username
+user=testuser		# --user username
 pass=$user		# --pass password
 capath=$(dirname "$myself")/certs	# --capath dirpath
 cacert=			# --cacert pathname
