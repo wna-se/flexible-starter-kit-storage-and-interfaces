@@ -33,9 +33,6 @@ fetch () {
 }
 
 crypt4gh_install () {
-        # May set $tmpdir, create that directory, and set a trap that
-        # deletes that directory on EXIT.  May modify $PATH.
-
 	cmd_exists crypt4gh && return
 
 	tmpdir=${TMPDIR:-/tmp}
@@ -54,8 +51,6 @@ crypt4gh_install () {
 	url=https://github.com/neicnordic/crypt4gh/releases/download/$crypt4gh_release
 
 	fetch "$url/crypt4gh_$arch.tar.gz" | tar -x -z -f - -C "$destdir" || exit 1
-
-	unset -v tmpdir destdir arch url
 }
 
 crypt4gh_mkcert () {
@@ -117,9 +112,17 @@ cat <<-USAGE_GENERAL
 	    --user username		Username		default: $user
 	    --pass password		Password		default: $pass
 	    --capath dirpath		Path to certificates	default: $capath
-	    --cacert pathname		Path to certificate	default: ${cacert:-$capath/$user.pub.pem}
+	    --cacert pathname		Path to certificate	default: $cacert
 
-	    If --cacert is used, then --user and --capath will not be used.
+	        The password given with --pass is only used to generate
+	        the CRYPT4GH certificate.
+
+	        The username given with --user is used as the basis for
+	        the CRYPT4GH certificate if --cacert is not used.  It is
+	        also used as the S3 path under the "inbox" bucket.
+
+	        If --cacert is used, then --user and --capath will not
+	        be used to locate the CRYPT4GH certificate.
 
 	    --mq-host hostname		RabbitMQ hostname	default: $mq_host
 	    --s3-host hostname		S3 server hostname	default: $s3_host
