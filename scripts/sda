@@ -1,0 +1,179 @@
+#!/bin/sh
+
+set -u
+
+# Default values for global options.
+user=test		# --user username
+capath=.		# --capath dirpath
+cacert=			# --cacert pathname
+mq_host=mq		# --mq-host hostname
+s3_host=s3		# --s3-host hostname
+s3_access_key=access	# --s3-access-key key
+s3_secret_key=secretkey	# --s3-secret-key key
+
+# Other variables.
+crypt4gh_release=v1.7.4
+
+myself=$0
+
+cmd_exists () {
+	command -v "$1" >/dev/null 2>&1
+}
+
+fetch () {
+	if cmd_exists curl; then
+		curl --silent --location "$@"
+	elif cmd_exists wget; then
+		wget --quiet --output-document=- "$@"
+	else
+		echo 'Need either curl or wget' >&2
+		exit 1
+	fi
+}
+
+install_crypt4gh () {
+        # May set $tmpdir, create that directory, and set a trap that
+        # deletes that directory on EXIT.  May modify $PATH.
+
+	cmd_exists crypt4gh && return
+	printf 'crypt4gh not found, downloading and installing %s' "$crypt4gh_release" >&2
+
+	tmpdir=${tmpdir:-$(mktemp -d)}
+	trap "rm -rf '$tmpdir'" EXIT
+	destdir=$tmpdir/crypt4gh
+
+	mkdir -p "$destdir" || exit 1
+	printf 'Installation path: %s\n' "$destdir"
+
+	arch=$( uname -sm | tr ' [:upper:]' '_[:lower:]' )
+	url=https://github.com/neicnordic/crypt4gh/releases/download/$crypt4gh_release
+
+	fetch "$url/crypt4gh_$arch.tar.gz" | tar -x -z -f - -C "$destdir" || exit 1
+	chmod +x "$destdir/crypt4gh"
+
+	PATH=$PATH:$destdir
+
+	unset -v destdir arch url
+}
+
+upload () {
+	install_crypt4gh
+
+	# Encrypt the files and upload them.
+	
+	for pathname do
+		crypt4gh encrypt -f "$pathname" -p "$cacert"
+	done
+}
+
+ingest () {
+	:
+}
+
+accession () {
+	:
+}
+
+dataset () {
+	:
+}
+
+usage () {
+	case ${1-} in
+		upload|ingest|accession|dataset)
+			"usage_$1"
+			;;
+		"")
+			usage_general
+			;;
+		*)
+			usage_general
+			return 1
+	esac
+}
+
+usage_general () {
+cat <<-USAGE_GENERAL
+	General synopsis:
+	    $myself [GLOBAL OPTIONS] [help] {upload|ingest|accession|dataset} [ARGUMENTS]
+
+	Global options:
+	    --user username		Username		default: $user
+	    --capath dirpath		Path to certificates	default: $capath
+	    --cacert pathname		Path to certificate	default: ${cacert:-$capath/$user.pub.pem}
+
+	    If --cacert is used, then --user and --capath will not be used.
+
+	    --mq-host hostname		RabbitMQ hostname	default: $mq_host
+	    --s3-host hostname		S3 server hostname	default: $s3_host
+
+	    --s3-secret-key key		S3 secret key		default: $s3_secret_key
+	    --s3-access-key key		S3 access key		default: $s3_access_key
+
+	Specific synopsis:
+	    $myself help
+
+	    $myself [...] upload pathname [pathname...]
+	    $myself help upload
+
+	    $myself [...] ingest pathname [pathname...]
+	    $myself help ingest
+
+	    $myself [...] accession pathname accessionID
+	    $myself [...] accession pathname
+	    $myself [...] accession
+	    $myself help accession
+
+	    $myself [...] dataset [--add] datasetID accessionID [accessionID...]
+	    $myself [...] dataset [--add] datasetID pathname [pathname...]
+	    $myself [...] dataset datasetID
+	    $myself help dataset
+
+	USAGE_GENERAL
+}
+
+# Handle global options.
+while true; do
+	case ${1-} in
+		--user)
+			user=$2
+			;;
+		--capath)
+			capath=$2
+			;;
+		--cacert)
+			cacert=$2
+			;;
+		--mq-host)
+			mq_host=$2
+			;;
+		--s3-host)
+			s3_host=$2
+			;;
+		--s3-access-key)
+			s3_access_key=$2
+			;;
+		--s3-secret-key)
+			s3_secret_key=$2
+			;;
+		*)
+			break
+	esac
+	shift 2
+done
+
+cacert=${cacert:-$capath/$user.pub.pem}
+
+# Handle sub-comands.
+case ${1-} in
+	upload|ingest|accession|dataset)
+		"$@"
+		;;
+	help)
+		shift
+		usage "$@"
+		;;
+	*)
+		usage
+		exit 1
+esac
