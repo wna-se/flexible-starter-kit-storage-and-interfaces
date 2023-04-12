@@ -5,76 +5,37 @@ set -u
 myself=$0
 
 # Default values for global options.
-user=testuser		# --user username
-pass=$user		# --pass password
-capath=$(dirname "$myself")/certs	# --capath dirpath
-cacert=			# --cacert pathname
-mq_host=mq		# --mq-host hostname
-s3_host=s3		# --s3-host hostname
-s3_access_key=access	# --s3-access-key key
-s3_secret_key=secretkey	# --s3-secret-key key
-
-# Other variables.
-crypt4gh_release=v1.7.4
+sda_config=s3cmd.conf		# --sda-config pathname
+sda_key=crypt4gh_key.pub	# --sda-key pathname
 
 cmd_exists () {
 	command -v "$1" >/dev/null 2>&1
 }
 
-fetch () {
-	if cmd_exists curl; then
-		curl --silent --location "$@"
-	elif cmd_exists wget; then
-		wget --quiet --output-document=- "$@"
-	else
-		echo 'Need either curl or wget' >&2
+upload () {
+	# Encrypt+upload using sda-cli.
+
+	if ! cmd_exists sda-cli; then
+		cat <<-'NOTFOUND_ERROR' >&2
+		Can't find sda-cli in your $PATH.  Please, install it
+		from https://github.com/NBISweden/sda-cli and make it
+		available in one of the directories in $PATH.
+		NOTFOUND_ERROR
 		exit 1
 	fi
-}
-
-crypt4gh_install () {
-	cmd_exists crypt4gh && return
-
-	tmpdir=${TMPDIR:-/tmp}
-	destdir=$tmpdir/crypt4gh
-
-	PATH=$PATH:$destdir
-	cmd_exists crypt4gh && return
-
-	printf 'crypt4gh not found, downloading and installing %s\n' \
-		"$crypt4gh_release" >&2
-
-	mkdir -p "$destdir" || exit 1
-	printf 'Installation path: %s\n' "$destdir"
-
-	arch=$( uname -sm | tr ' [:upper:]' '_[:lower:]' )
-	url=https://github.com/neicnordic/crypt4gh/releases/download/$crypt4gh_release
-
-	fetch "$url/crypt4gh_$arch.tar.gz" | tar -x -z -f - -C "$destdir" || exit 1
-}
-
-crypt4gh_mkcert () {
-	[ -f "$cacert" ] && return
-
-	printf 'Certificate not found at %s\n' "$cacert" >&2
-	echo 'Generating new certificate...' >&2
-
-	crypt4gh generate -n "$capath/$user" -p "$pass"
-
-	cacert=${cacert:-$capath/$user.pub.pem}
-}
-
-upload () {
-	crypt4gh_install
-	crypt4gh_mkcert
-
-	# Encrypt the files and upload them.
 
 	for pathname do
-		if [ ! -f "$pathname.c4gh" ]; then
-			yes | crypt4gh encrypt -f "$pathname" -p "$cacert"
-		fi
-	done >/dev/null
+		case $pathname in
+			*.c4gh)
+				# Don't encrypt.
+				set --
+				;;
+			*)
+				set -- --encrypt-with-key "$sda_key"
+		esac
+
+		sda-cli upload -config "$sda_config" "$@" "$pathname"
+	done
 }
 
 ingest () {
@@ -109,26 +70,8 @@ cat <<-USAGE_GENERAL
 	    $myself [GLOBAL OPTIONS] [help] {upload|ingest|accession|dataset} [ARGUMENTS]
 
 	Global options:
-	    --user username		Username		default: $user
-	    --pass password		Password		default: $pass
-	    --capath dirpath		Path to certificates	default: $capath
-	    --cacert pathname		Path to certificate	default: $cacert
-
-	        The password given with --pass is only used to generate
-	        the CRYPT4GH certificate.
-
-	        The username given with --user is used as the basis for
-	        the CRYPT4GH certificate if --cacert is not used.  It is
-	        also used as the S3 path under the "inbox" bucket.
-
-	        If --cacert is used, then --user and --capath will not
-	        be used to locate the CRYPT4GH certificate.
-
-	    --mq-host hostname		RabbitMQ hostname	default: $mq_host
-	    --s3-host hostname		S3 server hostname	default: $s3_host
-
-	    --s3-secret-key key		S3 secret key		default: $s3_secret_key
-	    --s3-access-key key		S3 access key		default: $s3_access_key
+	    --sda-config pathname	SDA S3 configuration file	Default: $sda_config
+	    --sda-key pathname		SDA CRYPT4GH public key file	Default: $sda_key
 
 	Specific synopsis:
 	    $myself help
@@ -155,37 +98,17 @@ cat <<-USAGE_GENERAL
 # Handle global options.
 while true; do
 	case ${1-} in
-		--user)
-			user=$2
+		--sda-config)
+			sda_config=$2
 			;;
-		--pass)
-			pass=$2
-			;;
-		--capath)
-			capath=$2
-			;;
-		--cacert)
-			cacert=$2
-			;;
-		--mq-host)
-			mq_host=$2
-			;;
-		--s3-host)
-			s3_host=$2
-			;;
-		--s3-access-key)
-			s3_access_key=$2
-			;;
-		--s3-secret-key)
-			s3_secret_key=$2
+		--sda-key)
+			sda_key=$2
 			;;
 		*)
 			break
 	esac
 	shift 2
 done
-
-cacert=${cacert:-$capath/$user.pub.pem}
 
 # Handle sub-comands.
 case ${1-} in
