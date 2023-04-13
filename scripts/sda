@@ -1,6 +1,6 @@
 #!/bin/sh
 
-set -u
+set -u -e -x
 
 myself=$0
 
@@ -8,9 +8,9 @@ myself=$0
 sda_config=s3cmd.conf		# --sda-config pathname
 sda_key=crypt4gh_key.pub	# --sda-key pathname
 
-cmd_exists () {
-	command -v "$1" >/dev/null 2>&1
-}
+# Other variables.
+mq_host=localhost
+mq_credentials=test:test
 
 encrypt () {
 	for pathname do
@@ -34,33 +34,42 @@ encrypt () {
 upload () {
 	# Encrypt+upload using sda-cli.
 
-	if ! cmd_exists sda-cli; then
-		cat <<-'NOTFOUND_ERROR' >&2
-		Can't find sda-cli in your $PATH.  Please, install it
-		from https://github.com/NBISweden/sda-cli and make it
-		available in one of the directories in $PATH.
-		NOTFOUND_ERROR
-		exit 1
-	fi
-
 	encrypt "$@"
 
 	for pathname do
 		shift
-		case $pathname in
-			*.c4gh)
-				set -- "$@" "$pathname"
-				;;
-			*)
-				set -- "$@" "$pathname.c4gh"
-		esac
+		pathname=${pathname%.c4gh}.c4gh
+		set -- "$@" "$pathname"
 	done
 
 	sda-cli upload -config "$sda_config" "$@"
 }
 
 ingest () {
-	:
+	# Ingest named files.
+
+	access_key=$(
+		sed	-e '/^access_key[[:blank:]]*=[[:blank:]]*/!d' \
+			-e 's///' \
+			-e 'q' \
+			"$sda_config"
+	)
+
+	for pathname do
+		shift
+		pathname=$access_key/$(basename "$pathname" .c4gh).c4gh
+		set -- "$@" "$pathname"
+	done
+
+	curl --silent --request POST \
+		--user "$mq_credentials" \
+		--header 'Content-Type: Application/JSON' \
+		--data '{"count":-1,"encoding":"base64","ackmode":"ack_requeue_true"}' \
+		"http://$mq_host:15672/api/queues/gdi/inbox/get" |
+	jq -r 'JOIN(INDEX(unique_by(.properties.correlation_id)[];
+			.payload | @base64d | fromjson.filepath);
+		$ARGS.positional | unique[]; .;
+		.[1].properties.correlation_id // empty)' --args "$@"
 }
 
 accession () {
