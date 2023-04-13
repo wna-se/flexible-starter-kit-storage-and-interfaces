@@ -12,6 +12,25 @@ cmd_exists () {
 	command -v "$1" >/dev/null 2>&1
 }
 
+encrypt () {
+	for pathname do
+		shift
+		case $pathname in
+			*.c4gh)
+				# Don't encrypt.
+				;;
+			*)
+				if [ ! -f "$pathname.c4gh" ]; then
+					set -- "$@" "$pathname"
+				fi
+		esac
+	done
+
+	if [ "$#" -gt 0 ]; then
+		sda-cli encrypt -key "$sda_key" "$@"
+	fi
+}
+
 upload () {
 	# Encrypt+upload using sda-cli.
 
@@ -24,18 +43,20 @@ upload () {
 		exit 1
 	fi
 
+	encrypt "$@"
+
 	for pathname do
+		shift
 		case $pathname in
 			*.c4gh)
-				# Don't encrypt.
-				set --
+				set -- "$@" "$pathname"
 				;;
 			*)
-				set -- --encrypt-with-key "$sda_key"
+				set -- "$@" "$pathname.c4gh"
 		esac
-
-		sda-cli upload -config "$sda_config" "$@" "$pathname"
 	done
+
+	sda-cli upload -config "$sda_config" "$@"
 }
 
 ingest () {
