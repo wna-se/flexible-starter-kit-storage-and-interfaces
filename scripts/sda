@@ -121,9 +121,7 @@ ingest () {
 		.payload |= (
 			fromjson | .type = "ingest" | del(.filesize,.operation) | tojson
 		) |
-		.routing_key = "ingest" |
-		del(.payload_bytes,.redelivered,.exchange,.message_count) |
-		@base64' \
+		.routing_key = "ingest" | del(.payload_bytes) | @base64' \
 		--args "$@" <uploaded.json | publish
 }
 
