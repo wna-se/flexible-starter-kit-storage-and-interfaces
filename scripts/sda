@@ -89,16 +89,6 @@ ingest () {
 		--data '{"count":-1,"encoding":"auto","ackmode":"ack_requeue_false"}' \
 		"http://$mq_host:15672/api/queues/gdi/inbox/get" >uploaded.json
 
-	# Filter out (extract) the ones that we want to ingest.  We
-	# get a set of JSON objects.  This set does not contain any
-	# duplicated correlation IDs.
-	#
-	jq 'JOIN(INDEX($ARGS.positional | unique[]; .);
-		unique_by(.properties.correlation_id)[];
-		.payload | fromjson.filepath;
-		if .[1] then .[0] else empty end)' \
-		--args "$@" <uploaded.json >upload-ingest.json
-
 	# Requeue the ones that we're not interested in.
 	#
 	# We do this by base64-encoding each message that we need to
@@ -115,6 +105,25 @@ ingest () {
 		unique_by(.properties.correlation_id)[];
 		.payload | fromjson.filepath;
 		if .[1] then empty else .[0] | @base64 end)' \
+		--args "$@" <uploaded.json | publish
+
+	# Filter out (extract) the ones that we want to ingest.  We
+	# get a set of JSON objects.  This set does not contain any
+	# duplicated correlation IDs.
+	#
+	# Then convert the extracted messages into ingestion messages
+	# and publish these.
+	#
+	jq 'JOIN(INDEX($ARGS.positional | unique[]; .);
+		unique_by(.properties.correlation_id)[];
+		.payload | fromjson.filepath;
+		if .[1] then .[0] else empty end) |
+		.payload |= (
+			fromjson | .type = "ingest" | del(.filesize,.operation) | tojson
+		) |
+		.routing_key = "ingest" |
+		del(.payload_bytes,.redelivered,.exchange,.message_count) |
+		@base64' \
 		--args "$@" <uploaded.json | publish
 }
 
