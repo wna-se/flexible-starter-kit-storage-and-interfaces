@@ -50,8 +50,7 @@ ingest () {
 
 	access_key=$(
 		sed	-e '/^access_key[[:blank:]]*=[[:blank:]]*/!d' \
-			-e 's///' \
-			-e 'q' \
+			-e 's///' -e 's/[[:blank:]]*$//' -e 'q' \
 			"$sda_config"
 	)
 
@@ -61,15 +60,55 @@ ingest () {
 		set -- "$@" "$pathname"
 	done
 
-	curl --silent --request POST \
+	tmpdir=$(mktemp -d)
+	# shellcheck disable=SC2064
+	trap "cd /; rm -r '$tmpdir'" EXIT
+	cd "$tmpdir" || exit
+
+	# Get upload messages and ACK them all without requeuing them.
+	# This empties the inbox queue.
+	curl --silent \
+		--request POST \
 		--user "$mq_credentials" \
 		--header 'Content-Type: Application/JSON' \
-		--data '{"count":-1,"encoding":"base64","ackmode":"ack_requeue_true"}' \
-		"http://$mq_host:15672/api/queues/gdi/inbox/get" |
-	jq -r 'JOIN(INDEX(unique_by(.properties.correlation_id)[];
-			.payload | @base64d | fromjson.filepath);
-		$ARGS.positional | unique[]; .;
-		.[1].properties.correlation_id // empty)' --args "$@"
+		--data '{"count":-1,"encoding":"auto","ackmode":"ack_requeue_false"}' \
+		"http://$mq_host:15672/api/queues/gdi/inbox/get" >uploaded.json
+
+	# Filter out (extract) the ones that we want to ingest.  We
+	# get a set of JSON objects.  This set does not contain any
+	# duplicated correlation IDs.
+	jq 'JOIN(INDEX($ARGS.positional | unique[]; .);
+		unique_by(.properties.correlation_id)[];
+		.payload | fromjson.filepath;
+		if .[1] then .[0] else empty end)' \
+		--args "$@" <uploaded.json >upload-ingest.json
+
+	# Requeue the ones that we're not interested in.
+	#
+	# We do this by base64-encoding each message that we need to
+	# requeue.  The base64 encoding is done by jq.  Then we pass
+	# each encoded message to a short in-line shell script that
+	# decodes it and calls curl to publish it.
+	#
+	# Note that we only requeue unique messages, based on their
+	# correlation ID.
+	#
+	# shellcheck disable=SC2016
+	jq -r 'JOIN(INDEX($ARGS.positional | unique[]; .);
+		unique_by(.properties.correlation_id)[];
+		.payload | fromjson.filepath;
+		if .[1] then empty else .[0] | @base64 end)' \
+		--args "$@" <uploaded.json |
+	env mq_credentials="$mq_credentials" mq_host="$mq_host" \
+	xargs -r -I{} sh -x -c '
+		printf "%s\n" "$1" | base64 -d |
+		curl --silent \
+			--request POST \
+			--user "$mq_credentials" \
+			--header "Content-Type: Application/JSON" \
+			--data @- \
+			"http://$mq_host:15672/api/exchanges/gdi/sda/publish"
+		' sh "{}"
 }
 
 accession () {
