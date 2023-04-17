@@ -58,6 +58,13 @@ curl () {
 		"$@"
 }
 
+access_key () {
+	# Parses the S3 configuration file and outputs the access key.
+	sed	-e '/^access_key[[:blank:]]*=[[:blank:]]*/!d' \
+		-e 's///' -e 's/[[:blank:]]*$//' -e 'q' \
+		"$sda_config"
+}
+
 publish () {
 	# Will read base64-encoded messages from standard input, one per
 	# line, decode each message and publish it.
@@ -71,23 +78,18 @@ publish () {
 ingest () {
 	# Ingest named files.
 
-	access_key=$(
-		sed	-e '/^access_key[[:blank:]]*=[[:blank:]]*/!d' \
-			-e 's///' -e 's/[[:blank:]]*$//' -e 'q' \
-			"$sda_config"
-	)
+	access_key=$(access_key)
 
 	# If no arguments are given, list the files that may be
-	# ingested, then return immediately.
+	# processed, then return immediately.
 	if [ "$#" -eq 0 ]; then
 		curl --data \
 			'{"count":-1,"encoding":"base64","ackmode":"ack_requeue_true"}' \
 			"$url_queues/inbox/get" |
 		jq -r --arg access_key "$access_key" '
-			unique_by(.properties.correlation_id)[] |
-			.payload | @base64d | fromjson |
+			map(.payload | @base64d | fromjson |
 			select(.filepath | startswith($access_key + "/")).filepath |
-			sub(".*?/"; "")'
+				sub(".*?/"; "")) | unique[]'
 		return
 	fi
 
@@ -116,11 +118,11 @@ ingest () {
 	# only a way of converting each message into a single line of
 	# text that can be safely handled by the shell.
 	#
-	# Note that we only requeue unique messages, based on their
-	# correlation ID.
+	# Note that we only requeue unique messages, based on the file
+	# path stored in the message payload.
 	#
 	jq -r 'JOIN(INDEX($ARGS.positional | unique[]; .);
-		unique_by(.properties.correlation_id)[];
+		unique_by(.payload | @base64d | fromjson.filepath)[];
 		.payload | @base64d | fromjson.filepath;
 		if .[1] then empty else .[0] | @base64 end)' \
 		--args "$@" <uploaded.json | publish
@@ -132,8 +134,8 @@ ingest () {
 	# Then convert the extracted messages into ingestion messages
 	# and publish these.
 	#
-	jq 'JOIN(INDEX($ARGS.positional | unique[]; .);
-		unique_by(.properties.correlation_id)[];
+	jq -r 'JOIN(INDEX($ARGS.positional | unique[]; .);
+		unique_by(.payload | @base64d | fromjson.filepath)[];
 		.payload | @base64d | fromjson.filepath;
 		if .[1] then .[0] else empty end) |
 		.payload |= (
@@ -146,6 +148,23 @@ ingest () {
 }
 
 accession () {
+	# Assign accession IDs to ingested files.
+
+	access_key=$(access_key)
+
+	# If no arguments are given, list the files that may be
+	# processed, then return immediately.
+	if [ "$#" -eq 0 ]; then
+		curl --data \
+			'{"count":-1,"encoding":"base64","ackmode":"ack_requeue_true"}' \
+			"$url_queues/verified/get" |
+		jq -r --arg access_key "$access_key" '
+			unique_by(.payload | @base64d | fromjson.filepath)[] |
+			.payload | @base64d | fromjson |
+			select(.filepath | startswith($access_key + "/")).filepath |
+			sub(".*?/"; "")'
+		return
+	fi
 	:
 }
 
@@ -182,7 +201,8 @@ cat <<-USAGE_GENERAL
 	    $myself [...] upload pathname [pathname...]
 	    $myself help upload
 
-	    $myself [...] ingest [ pathname [pathname...] ]
+	    $myself [...] ingest pathname [pathname...]
+	    $myself [...] ingest
 	    $myself help ingest
 
 	    $myself [...] accession pathname accessionID
