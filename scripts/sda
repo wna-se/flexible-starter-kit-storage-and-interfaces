@@ -75,6 +75,55 @@ publish () {
 	done
 }
 
+get_messages () {
+	# Retrieves the messages on the queue given by the 1st argument.
+	# The remaining arguments are file paths that we filter the
+	# messages with.  Any message that does not correspond to any
+	# of the given file paths is requeued.  The remaining messages
+	# are individually base64-encoded and outputted on the standard
+	# output stream, one message per line of output.
+
+	queue=$1
+	shift
+
+	for pathname do
+		shift
+		# $access_key is set by the caller.
+		pathname=$access_key/$(basename "$pathname" .c4gh).c4gh
+		set -- "$@" "$pathname"
+	done
+
+	tmpfile=$(mktemp)
+	# shellcheck disable=SC2064
+	trap "rm '$tmpfile'" EXIT
+
+	# Get upload messages and ACK them all without requeuing them.
+	# This empties the queue.
+	#
+	curl --data '{"count":-1,"encoding":"base64","ackmode":"ack_requeue_false"}' \
+		"$url_queues/$queue/get" >"$tmpfile"
+
+	# Requeue the messages that we're not interested in.
+	#
+	# Note that we only requeue unique messages, based on the file
+	# path stored in the message payload.
+	#
+	jq -r 'JOIN(INDEX($ARGS.positional | unique[]; .);
+		unique_by(.payload | @base64d | fromjson.filepath)[];
+		.payload | @base64d | fromjson.filepath;
+		if .[1] then empty else .[0] | @base64 end)' \
+		--args "$@" <"$tmpfile" | publish >/dev/null
+
+	# Filter out (extract) the the set of messages that we want to
+	# keep.  This set does not contain any duplicated file paths.
+	#
+	jq -r 'JOIN(INDEX($ARGS.positional | unique[]; .);
+		unique_by(.payload | @base64d | fromjson.filepath)[];
+		.payload | @base64d | fromjson.filepath;
+		if .[1] then .[0] | @base64 else empty end)' \
+		--args "$@" <"$tmpfile"
+}
+
 ingest () {
 	# Ingest named files.
 
@@ -82,6 +131,7 @@ ingest () {
 
 	# If no arguments are given, list the files that may be
 	# processed, then return immediately.
+	#
 	if [ "$#" -eq 0 ]; then
 		curl --data \
 			'{"count":-1,"encoding":"base64","ackmode":"ack_requeue_true"}' \
@@ -93,58 +143,19 @@ ingest () {
 		return
 	fi
 
-	for pathname do
-		shift
-		pathname=$access_key/$(basename "$pathname" .c4gh).c4gh
-		set -- "$@" "$pathname"
-	done
-
-	tmpdir=$(mktemp -d)
-	# shellcheck disable=SC2064
-	trap "cd /; rm -r '$tmpdir'" EXIT
-	cd "$tmpdir" || exit
-
-	# Get upload messages and ACK them all without requeuing them.
-	# This empties the inbox queue.
-	curl --data '{"count":-1,"encoding":"base64","ackmode":"ack_requeue_false"}' \
-		"$url_queues/inbox/get" >uploaded.json
-
-	# Requeue the messages that we're not interested in.
+	# Get the messages that we want from the inbox queue, then
+	# rewrite them into ingest messages and publish them.
 	#
-	# We do this by base64-encoding each message that we need to
-	# requeue.  The base64 encoding is done by jq.  Then we pass the
-	# stream of encoded messages to our a helper function, which
-	# decodes and publish them.  The temporary base64 encoding is
-	# only a way of converting each message into a single line of
-	# text that can be safely handled by the shell.
-	#
-	# Note that we only requeue unique messages, based on the file
-	# path stored in the message payload.
-	#
-	jq -r 'JOIN(INDEX($ARGS.positional | unique[]; .);
-		unique_by(.payload | @base64d | fromjson.filepath)[];
-		.payload | @base64d | fromjson.filepath;
-		if .[1] then empty else .[0] | @base64 end)' \
-		--args "$@" <uploaded.json | publish
-
-	# Filter out (extract) the ones that we want to ingest.  We
-	# get a set of JSON objects.  This set does not contain any
-	# duplicated correlation IDs.
-	#
-	# Then convert the extracted messages into ingestion messages
-	# and publish these.
-	#
-	jq -r 'JOIN(INDEX($ARGS.positional | unique[]; .);
-		unique_by(.payload | @base64d | fromjson.filepath)[];
-		.payload | @base64d | fromjson.filepath;
-		if .[1] then .[0] else empty end) |
+	get_messages inbox "$@" |
+	jq -r -R '@base64d | fromjson |
 		.payload |= (
 			@base64d | fromjson |
 			.type = "ingest" | del(.filesize,.operation) |
 			tojson | @base64
 		) |
-		.routing_key = "ingest" | del(.payload_bytes) | @base64' \
-		--args "$@" <uploaded.json | publish
+		.routing_key = "ingest" | del(.payload_bytes) |
+		@base64' |
+	publish
 }
 
 accession () {
@@ -154,15 +165,15 @@ accession () {
 
 	# If no arguments are given, list the files that may be
 	# processed, then return immediately.
+	#
 	if [ "$#" -eq 0 ]; then
 		curl --data \
 			'{"count":-1,"encoding":"base64","ackmode":"ack_requeue_true"}' \
 			"$url_queues/verified/get" |
 		jq -r --arg access_key "$access_key" '
-			unique_by(.payload | @base64d | fromjson.filepath)[] |
-			.payload | @base64d | fromjson |
+			map(.payload | @base64d | fromjson |
 			select(.filepath | startswith($access_key + "/")).filepath |
-			sub(".*?/"; "")'
+				sub(".*?/"; "")) | unique[]'
 		return
 	fi
 	:
