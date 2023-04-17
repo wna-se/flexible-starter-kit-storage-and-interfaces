@@ -12,6 +12,10 @@ sda_key=crypt4gh_key.pub	# --sda-key pathname
 mq_host=localhost
 mq_credentials=test:test
 
+url_api=http://$mq_host:15672/api
+url_exchanges=$url_api/exchanges/gdi/sda
+url_queues=$url_api/queues/gdi
+
 encrypt () {
 	for pathname do
 		shift
@@ -60,7 +64,7 @@ publish () {
 
 	while IFS= read -r message; do
 		printf "%s\n" "$message" | base64 -d |
-		curl --data @- "http://$mq_host:15672/api/exchanges/gdi/sda/publish"
+		curl --data @- "$url_exchanges/publish"
 	done
 }
 
@@ -72,6 +76,20 @@ ingest () {
 			-e 's///' -e 's/[[:blank:]]*$//' -e 'q' \
 			"$sda_config"
 	)
+
+	# If no arguments are given, list the files that may be
+	# ingested, then return immediately.
+	if [ "$#" -eq 0 ]; then
+		curl --data \
+			'{"count":-1,"encoding":"base64","ackmode":"ack_requeue_true"}' \
+			"$url_queues/inbox/get" |
+		jq -r --arg access_key "$access_key" '
+			unique_by(.properties.correlation_id)[] |
+			.payload | @base64d | fromjson |
+			select(.filepath | startswith($access_key + "/")).filepath |
+			sub(".*?/"; "")'
+		return
+	fi
 
 	for pathname do
 		shift
@@ -87,7 +105,7 @@ ingest () {
 	# Get upload messages and ACK them all without requeuing them.
 	# This empties the inbox queue.
 	curl --data '{"count":-1,"encoding":"base64","ackmode":"ack_requeue_false"}' \
-		"http://$mq_host:15672/api/queues/gdi/inbox/get" >uploaded.json
+		"$url_queues/inbox/get" >uploaded.json
 
 	# Requeue the messages that we're not interested in.
 	#
@@ -164,7 +182,7 @@ cat <<-USAGE_GENERAL
 	    $myself [...] upload pathname [pathname...]
 	    $myself help upload
 
-	    $myself [...] ingest pathname [pathname...]
+	    $myself [...] ingest [ pathname [pathname...] ]
 	    $myself help ingest
 
 	    $myself [...] accession pathname accessionID
