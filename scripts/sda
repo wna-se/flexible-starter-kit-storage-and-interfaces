@@ -20,9 +20,9 @@ encrypt () {
 				# Don't encrypt.
 				;;
 			*)
-				if [ ! -f "$pathname.c4gh" ]; then
-					set -- "$@" "$pathname"
-				fi
+				# Encrypt if there's no encrypted
+				# variant of the file.
+				[ ! -f "$pathname.c4gh" ] && set -- "$@" "$pathname"
 		esac
 	done
 
@@ -45,18 +45,22 @@ upload () {
 	sda-cli upload -config "$sda_config" "$@"
 }
 
+curl () {
+	# Helper function that makes curl calls a bit shorter.
+	command curl --silent \
+		--request POST \
+		--user "$mq_credentials" \
+		--header "Content-Type: application/json" \
+		"$@"
+}
+
 publish () {
 	# Will read base64-encoded messages from standard input, one per
-	# line, decode each message, and publish it.
+	# line, decode each message and publish it.
 
 	while IFS= read -r message; do
 		printf "%s\n" "$message" | base64 -d |
-		curl --silent \
-			--request POST \
-			--user "$mq_credentials" \
-			--header "Content-Type: application/json" \
-			--data @- \
-			"http://$mq_host:15672/api/exchanges/gdi/sda/publish"
+		curl --data @- "http://$mq_host:15672/api/exchanges/gdi/sda/publish"
 	done
 }
 
@@ -82,14 +86,10 @@ ingest () {
 
 	# Get upload messages and ACK them all without requeuing them.
 	# This empties the inbox queue.
-	curl --silent \
-		--request POST \
-		--user "$mq_credentials" \
-		--header 'Content-Type: application/json' \
-		--data '{"count":-1,"encoding":"auto","ackmode":"ack_requeue_false"}' \
+	curl --data '{"count":-1,"encoding":"base64","ackmode":"ack_requeue_false"}' \
 		"http://$mq_host:15672/api/queues/gdi/inbox/get" >uploaded.json
 
-	# Requeue the ones that we're not interested in.
+	# Requeue the messages that we're not interested in.
 	#
 	# We do this by base64-encoding each message that we need to
 	# requeue.  The base64 encoding is done by jq.  Then we pass the
@@ -103,7 +103,7 @@ ingest () {
 	#
 	jq -r 'JOIN(INDEX($ARGS.positional | unique[]; .);
 		unique_by(.properties.correlation_id)[];
-		.payload | fromjson.filepath;
+		.payload | @base64d | fromjson.filepath;
 		if .[1] then empty else .[0] | @base64 end)' \
 		--args "$@" <uploaded.json | publish
 
@@ -116,10 +116,12 @@ ingest () {
 	#
 	jq 'JOIN(INDEX($ARGS.positional | unique[]; .);
 		unique_by(.properties.correlation_id)[];
-		.payload | fromjson.filepath;
+		.payload | @base64d | fromjson.filepath;
 		if .[1] then .[0] else empty end) |
 		.payload |= (
-			fromjson | .type = "ingest" | del(.filesize,.operation) | tojson
+			@base64d | fromjson |
+			.type = "ingest" | del(.filesize,.operation) |
+			tojson | @base64
 		) |
 		.routing_key = "ingest" | del(.payload_bytes) | @base64' \
 		--args "$@" <uploaded.json | publish
