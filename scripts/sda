@@ -124,6 +124,19 @@ get_messages () {
 		--args "$@" <"$tmpfile"
 }
 
+get_filepaths () {
+	queue=$1
+
+	# $access_key is set by the caller.
+	curl --data \
+		'{"count":-1,"encoding":"base64","ackmode":"ack_requeue_true"}' \
+		"$url_queues/$queue/get" |
+	jq -r --arg access_key "$access_key" '
+		map(.payload | @base64d | fromjson |
+		select(.filepath | startswith($access_key + "/")).filepath |
+			sub(".*?/"; "")) | unique[]'
+}
+
 ingest () {
 	# Ingest named files.
 
@@ -133,27 +146,23 @@ ingest () {
 	# processed, then return immediately.
 	#
 	if [ "$#" -eq 0 ]; then
-		curl --data \
-			'{"count":-1,"encoding":"base64","ackmode":"ack_requeue_true"}' \
-			"$url_queues/inbox/get" |
-		jq -r --arg access_key "$access_key" '
-			map(.payload | @base64d | fromjson |
-			select(.filepath | startswith($access_key + "/")).filepath |
-				sub(".*?/"; "")) | unique[]'
+		get_filepaths inbox
 		return
 	fi
 
-	# Get the messages that we want from the inbox queue, then
+	# Get the messages that we want from the "inbox" queue, then
 	# rewrite them into ingest messages and publish them.
 	#
 	get_messages inbox "$@" |
 	jq -r -R '@base64d | fromjson |
 		.payload |= (
 			@base64d | fromjson |
-			.type = "ingest" | del(.filesize,.operation) |
+			.type = "ingest" |
+			del(.filesize,.operation) |
 			tojson | @base64
 		) |
-		.routing_key = "ingest" | del(.payload_bytes) |
+		.routing_key = "ingest" |
+		del(.payload_bytes) |
 		@base64' |
 	publish
 }
@@ -167,19 +176,51 @@ accession () {
 	# processed, then return immediately.
 	#
 	if [ "$#" -eq 0 ]; then
-		curl --data \
-			'{"count":-1,"encoding":"base64","ackmode":"ack_requeue_true"}' \
-			"$url_queues/verified/get" |
-		jq -r --arg access_key "$access_key" '
-			map(.payload | @base64d | fromjson |
-			select(.filepath | startswith($access_key + "/")).filepath |
-				sub(".*?/"; "")) | unique[]'
+		get_filepaths verified
 		return
 	fi
-	:
+
+	# We expect exactly two arguments here; one file path and one
+	# accession ID.
+	#
+	if [ "$#" -ne 2 ]; then
+		usage_accession >&2
+		return 1
+	fi
+
+	# Get the message that we want from the "verified" queue (there
+	# will be at most one message as they are deduplicated based on
+	# the file path, and we're only querying using a single file
+	# path), then rewrite them into ingest messages and publish
+	# them.
+	#
+	get_messages verified "$1" |
+	jq -r -R --arg accession_id "$2" '@base64d | fromjson |
+		.payload |= (
+			@base64d | fromjson |
+			.type = "accession" |
+			.accession_id = $accession_id |
+			del(.filesize,.operation) |
+			tojson | @base64
+		) |
+		.routing_key = "accessionIDs" |
+		del(.payload_bytes) |
+		@base64' |
+	publish
 }
 
 dataset () {
+	# Collect file paths into datasets.
+
+	access_key=$(access_key)
+
+	# If no arguments are given, list the files that may be
+	# processed, then return immediately.
+	#
+	if [ "$#" -eq 0 ]; then
+		get_filepaths completed
+		return
+	fi
 	:
 }
 
@@ -192,7 +233,7 @@ usage () {
 			usage_general
 			;;
 		*)
-			usage_general
+			usage_general >&2
 			return 1
 	esac
 }
