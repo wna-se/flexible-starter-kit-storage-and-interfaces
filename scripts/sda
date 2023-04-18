@@ -329,6 +329,28 @@ usage_upload () {
 	USAGE_UPLOAD
 }
 
+usage_ingest () {
+	cat <<-USAGE_INGEST
+	The "ingest" sub-command is used for ingesting one or several
+	uploaded files.  The filenames to be ingested may be given with
+	or without the ".c4gh" filename suffix and with or without a
+	full directory path (the suffix will be added to names that lack
+	it, and any directory path will be ignored).
+
+	Example usage:
+
+	    Listing the filenames currently in the "inbox" queue waiting
+	    to be ingested:
+
+	    $myself ingest
+
+	    Ingesting three files at once:
+
+	    $myself ingest file1 file2 file3
+
+	USAGE_INGEST
+}
+
 # Handle global options.
 while true; do
 	case ${1-} in
