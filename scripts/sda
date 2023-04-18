@@ -66,13 +66,14 @@ access_key () {
 }
 
 publish () {
-	# Will read base64-encoded messages from standard input, one per
-	# line, decode each message and publish it.
+	# Will read base64-encoded messages from standard input, one
+	# per line, decode each message and publish it.  Any output is
+	# explicitly discarded.
 
 	while IFS= read -r message; do
 		printf "%s\n" "$message" | base64 -d |
 		curl --data @- "$url_exchanges/publish"
-	done
+	done >/dev/null
 }
 
 get_messages () {
@@ -113,7 +114,8 @@ get_messages () {
 		unique_by(.payload | @base64d | fromjson.filepath)[];
 		.payload | @base64d | fromjson.filepath;
 		if .[1] then empty else .[0] | @base64 end)' \
-		--args "$@" <"$tmpfile" | publish >/dev/null
+		--args "$@" <"$tmpfile" |
+	publish
 
 	# Filter out (extract) the the set of messages that we want to
 	# keep.  This set does not contain any duplicated file paths.
