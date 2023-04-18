@@ -78,9 +78,9 @@ publish () {
 
 get_messages () {
 	# Retrieves the messages on the queue given by the 1st argument.
-	# The remaining arguments are file paths that we filter the
+	# The remaining arguments are filenames that we filter the
 	# messages with.  Any message that does not correspond to any
-	# of the given file paths is requeued.  The remaining messages
+	# of the given filenames is requeued.  The remaining messages
 	# are individually base64-encoded and outputted on the standard
 	# output stream, one message per line of output.
 
@@ -108,7 +108,7 @@ get_messages () {
 	# Requeue the messages that we're not interested in.
 	#
 	# Note that we only requeue unique messages, based on the file
-	# path stored in the message payload.
+	# path stored in each message's payload.
 	#
 	jq -r 'JOIN(INDEX($ARGS.positional | unique[]; .);
 		unique_by(.payload | @base64d | fromjson.filepath)[];
@@ -127,7 +127,7 @@ get_messages () {
 		--args "$@" <"$tmpfile"
 }
 
-get_filepaths () {
+get_filenames () {
 	queue=$1
 
 	access_key=$(access_key)
@@ -142,13 +142,13 @@ get_filepaths () {
 }
 
 ingest () {
-	# Ingest named files.
+	# Ingest the given filenames.
 
-	# If no arguments are given, list the files that may be
+	# If no arguments are given, list the filenames that may be
 	# processed, then return immediately.
 	#
 	if [ "$#" -eq 0 ]; then
-		get_filepaths inbox
+		get_filenames inbox
 		return
 	fi
 
@@ -172,30 +172,34 @@ ingest () {
 accession () {
 	# Assign accession IDs to ingested files.
 
-	# If no arguments are given, list the files that may be
+	# If no arguments are given, list the filenames that may be
 	# processed, then return immediately.
 	#
 	if [ "$#" -eq 0 ]; then
-		get_filepaths verified
+		get_filenames verified
 		return
 	fi
 
-	# We expect exactly two arguments here; one file path and one
-	# accession ID.
+	# We expect exactly two arguments here; one accession ID and one
+	# filename.
 	#
 	if [ "$#" -ne 2 ]; then
 		usage_accession >&2
 		return 1
 	fi
 
+	accession_id=$1
+	shift
+
 	# Get the message that we want from the "verified" queue (there
-	# will be at most one message as they are deduplicated based on
-	# the file path, and we're only querying using a single file
-	# path), then rewrite them into ingest messages and publish
+	# will be at most one message as they are deduplicated based
+	# on the file path, and we're only querying using a single
+	# filename), then rewrite them into ingest messages and publish
 	# them.
 	#
-	get_messages verified "$1" |
-	jq -r -R --arg accession_id "$2" '@base64d | fromjson |
+	get_messages verified "$@" |
+	jq -r -R --arg accession_id "$accession_id" '
+		@base64d | fromjson |
 		.payload |= (
 			@base64d | fromjson |
 			.type = "accession" |
@@ -210,16 +214,51 @@ accession () {
 }
 
 dataset () {
-	# Collect file paths into datasets.
+	# Collect filenames into datasets.
 
 	# If no arguments are given, list the files that may be
 	# processed, then return immediately.
 	#
 	if [ "$#" -eq 0 ]; then
-		get_filepaths completed
+		get_filenames completed
 		return
 	fi
-	:
+
+	# We expect at least two arguments here; one dataset ID and at
+	# least one filename.
+	#
+	if [ "$#" -lt 2 ]; then
+		usage_dataset >&2
+		return 1
+	fi
+
+	dataset_id=$1
+	shift
+
+	# Get the messages that we want from the "completed" queue, and
+	# assign the accession IDs from these to the given dataset ID.
+	#
+	get_messages completed "$@" |
+	jq -r -R -n --arg dataset_id "$dataset_id" '
+		{
+			properties: {
+				delivery_mode: 2,
+				content_encoding: "UTF-8",
+				content_type: "application/json"
+			},
+			routing_key: "mappings",
+			payload: {
+				type: "mapping",
+				dataset_id: $dataset_id,
+				accession_ids: [
+					inputs |
+					@base64d | fromjson.payload |
+					@base64d | fromjson.accession_id
+				]
+			} | @base64,
+			payload_encoding: "base64"
+		} | @base64' |
+	publish
 }
 
 usage () {
@@ -251,17 +290,16 @@ cat <<-USAGE_GENERAL
 	    $myself [...] upload pathname [pathname...]
 	    $myself help upload
 
-	    $myself [...] ingest pathname [pathname...]
+	    $myself [...] ingest filename [filename...]
 	    $myself [...] ingest
 	    $myself help ingest
 
-	    $myself [...] accession pathname accessionID
+	    $myself [...] accession accessionID filename
 	    $myself [...] accession
 	    $myself help accession
 
-	    $myself [...] dataset [--add] datasetID accessionID [accessionID...]
-	    $myself [...] dataset [--add] datasetID pathname [pathname...]
-	    $myself [...] dataset datasetID
+	    $myself [...] dataset datasetID filename [filename...]
+	    $myself [...] dataset
 	    $myself help dataset
 
 	USAGE_GENERAL
