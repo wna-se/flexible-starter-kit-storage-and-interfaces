@@ -104,7 +104,7 @@ services:
       interval: 5s
       timeout: 20s
       retries: 3
-    image: ghcr.io/neicnordic/sda-db:v2.1.1
+    image: ghcr.io/neicnordic/sda-db:v2.1.5
     networks:
       - secure
     restart: always
