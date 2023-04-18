@@ -320,11 +320,13 @@ usage_upload () {
 
 	Example usage:
 
-	    Encrypting and uploading three files at once (this creates
+	    Files may be uploaded one by one or several at once.
+	    Encrypting and uploading three files (this creates
 	    "file1.c4gh", "file2.c4gh", and "file3.c4gh", if these files
 	    did not already exist):
 
-	    $myself upload file1 file2 file3
+	    $myself upload file1 file2
+	    $myself upload file3
 
 	USAGE_UPLOAD
 }
@@ -344,9 +346,11 @@ usage_ingest () {
 
 	    $myself ingest
 
-	    Ingesting three files at once:
+	    Files may be ingested one by one or several at once.
+	    Ingesting three files:
 
-	    $myself ingest file1 file2 file3
+	    $myself ingest file1 file2
+	    $myself ingest file3
 
 	USAGE_INGEST
 }
@@ -362,10 +366,11 @@ usage_accession () {
 	Example usage:
 
 	    Listing the filenames currently in the "verified" queue
-	    waiting to have accession IDs assigned to them.
+	    waiting to have accession IDs assigned to them:
 
 	    $myself accession
 
+	    Accessions are only ever assiged to one file at a time.
 	    Assigning accessions to three files:
 
 	    $myself accession MYID001 file1
@@ -373,6 +378,29 @@ usage_accession () {
 	    $myself accession MYID003 file3
 
 	USAGE_ACCESSION
+}
+
+usage_dataset () {
+	cat <<-USAGE_DATASET
+	The "dataset" sub-command is used for associating one or several
+	files to a single dataset ID.  As with the "ingest" sub-command,
+	the filenames may be given with or without the ".c4gh" filename
+	suffix and with or without a full directory path.
+
+	Example usage:
+
+	    Listing the filenames currently in the "completed" queue
+	    waiting to be associated with a dataset ID:
+
+	    $myself dataset
+
+	    Files are associated to dataset IDs one at a time or several
+	    at once.  Associating three files with a dataset ID:
+
+	    $myself dataset MYSET001 file1 file2
+	    $myself dataset MYSET001 file3
+
+	USAGE_DATASET
 }
 
 # Handle global options.
