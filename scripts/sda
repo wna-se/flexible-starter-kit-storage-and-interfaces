@@ -351,6 +351,30 @@ usage_ingest () {
 	USAGE_INGEST
 }
 
+usage_accession () {
+	cat <<-USAGE_ACCESSION
+	The "accession" sub-command is used for assignig an accession ID
+	to a single file that has previously been ingested.  As with the
+	"ingest" sub-command, the filenames may be given with or without
+	the ".c4gh" filename suffix and with or without a full directory
+	path.
+
+	Example usage:
+
+	    Listing the filenames currently in the "verified" queue
+	    waiting to have accession IDs assigned to them.
+
+	    $myself accession
+
+	    Assigning accessions to three files:
+
+	    $myself accession MYID001 file1
+	    $myself accession MYID002 file2
+	    $myself accession MYID003 file3
+
+	USAGE_ACCESSION
+}
+
 # Handle global options.
 while true; do
 	case ${1-} in
