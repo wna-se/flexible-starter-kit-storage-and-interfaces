@@ -86,9 +86,10 @@ get_messages () {
 	queue=$1
 	shift
 
+	access_key=$(access_key)
+
 	for pathname do
 		shift
-		# $access_key is set by the caller.
 		pathname=$access_key/$(basename "$pathname" .c4gh).c4gh
 		set -- "$@" "$pathname"
 	done
@@ -127,7 +128,8 @@ get_messages () {
 get_filepaths () {
 	queue=$1
 
-	# $access_key is set by the caller.
+	access_key=$(access_key)
+
 	curl --data \
 		'{"count":-1,"encoding":"base64","ackmode":"ack_requeue_true"}' \
 		"$url_queues/$queue/get" |
@@ -139,8 +141,6 @@ get_filepaths () {
 
 ingest () {
 	# Ingest named files.
-
-	access_key=$(access_key)
 
 	# If no arguments are given, list the files that may be
 	# processed, then return immediately.
@@ -169,8 +169,6 @@ ingest () {
 
 accession () {
 	# Assign accession IDs to ingested files.
-
-	access_key=$(access_key)
 
 	# If no arguments are given, list the files that may be
 	# processed, then return immediately.
@@ -211,8 +209,6 @@ accession () {
 
 dataset () {
 	# Collect file paths into datasets.
-
-	access_key=$(access_key)
 
 	# If no arguments are given, list the files that may be
 	# processed, then return immediately.
@@ -258,7 +254,6 @@ cat <<-USAGE_GENERAL
 	    $myself help ingest
 
 	    $myself [...] accession pathname accessionID
-	    $myself [...] accession pathname
 	    $myself [...] accession
 	    $myself help accession
 
