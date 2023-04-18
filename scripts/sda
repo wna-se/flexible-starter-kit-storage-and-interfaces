@@ -35,26 +35,6 @@ encrypt () {
 	fi
 }
 
-usage_upload () {
-	cat <<-USAGE_UPLOAD
-	The "upload" sub-command is used for encrypting and uploading
-	one or several files to the configured S3 storage's inbox.
-	Both encryption and uploading is carried out using "sda-cli".
-
-	If a given file is already encrypted (it has a ".c4gh" filename
-	suffix), it will not be re-encrypted.  If a given file exists
-	alongside a corresponding encrypted file, the encrypted file
-	will be used in place of the given file.  To ensure that each
-	file is freshly encrypted, remove all encrypted versions of the
-	files.
-
-	Example usage:
-
-	    $myself upload file1 file2 file3
-
-	USAGE_UPLOAD
-}
-
 upload () {
 	# Encrypt+upload using sda-cli.
 
@@ -323,6 +303,30 @@ usage_general () {
 	    $myself help dataset
 
 	USAGE_GENERAL
+}
+
+usage_upload () {
+	cat <<-USAGE_UPLOAD
+	The "upload" sub-command is used for encrypting and uploading
+	one or several files to the configured S3 storage's inbox.
+	Both encryption and uploading is carried out using "sda-cli".
+
+	If a given file is already encrypted (it has a ".c4gh" filename
+	suffix), it will not be re-encrypted.  If a given file exists
+	alongside a corresponding encrypted file, the encrypted file
+	will be used in place of the given file.  To ensure that each
+	file is freshly encrypted, remove all encrypted versions of the
+	files.
+
+	Example usage:
+
+	    Encrypting and uploading three files at once (this creates
+	    "file1.c4gh", "file2.c4gh", and "file3.c4gh", if these files
+	    did not already exist):
+
+	    $myself upload file1 file2 file3
+
+	USAGE_UPLOAD
 }
 
 # Handle global options.
