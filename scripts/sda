@@ -161,7 +161,7 @@ ingest () {
 			@base64d | fromjson |
 			.type = "ingest" |
 			del(.filesize,.operation) |
-			tojson | @base64
+			@base64
 		) |
 		.routing_key = "ingest" |
 		del(.payload_bytes) |
@@ -205,7 +205,7 @@ accession () {
 			.type = "accession" |
 			.accession_id = $accession_id |
 			del(.filesize,.operation) |
-			tojson | @base64
+			@base64
 		) |
 		.routing_key = "accessionIDs" |
 		del(.payload_bytes) |
