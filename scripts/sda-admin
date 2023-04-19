@@ -5,12 +5,10 @@ set -u -e
 myself=$0
 
 # Default values for global options.
+mq_credentials=test:test	# --mq-credentials user:pass
+mq_host=localhost		# --mq-host hostname
 sda_config=s3cmd.conf		# --sda-config pathname
 sda_key=crypt4gh_key.pub	# --sda-key pathname
-
-# Other variables.
-mq_host=localhost
-mq_credentials=test:test
 
 url_api=http://$mq_host:15672/api
 url_exchanges=$url_api/exchanges/gdi/sda
@@ -290,6 +288,8 @@ usage_general () {
 	    $myself [GLOBAL OPTIONS] [help] {upload|ingest|accession|dataset} [ARGUMENTS]
 
 	Global options:
+	    --mq-credentials user:pass	MQ credentials			Currently: $mq_credentials
+	    --mq-host hostname		MQ hostname			Currently: $mq_host
 	    --sda-config pathname	SDA S3 configuration file	Currently: $sda_config
 	    --sda-key pathname		SDA CRYPT4GH public key file	Currently: $sda_key
 
@@ -415,6 +415,12 @@ usage_dataset () {
 # Handle global options.
 while true; do
 	case ${1-} in
+		--mq-credentials)
+			mq_credentials=$2
+			;;
+		--mq-host)
+			mq_host=$2
+			;;
 		--sda-config)
 			sda_config=$2
 			;;
@@ -437,6 +443,6 @@ case ${1-} in
 		usage "$@"
 		;;
 	*)
-		usage
+		usage >&2
 		exit 1
 esac
