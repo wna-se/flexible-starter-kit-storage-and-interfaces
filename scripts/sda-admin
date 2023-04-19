@@ -34,9 +34,7 @@ encrypt () {
 	done
 
 	# If there are files to encrypt, encrypt them.
-	if [ "$#" -gt 0 ]; then
-		sda-cli encrypt -key "$sda_key" "$@"
-	fi
+	[ "$#" -gt 0 ] && sda-cli encrypt -key "$sda_key" "$@"
 }
 
 upload () {
