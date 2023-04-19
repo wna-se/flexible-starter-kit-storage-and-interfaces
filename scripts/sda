@@ -17,19 +17,23 @@ url_exchanges=$url_api/exchanges/gdi/sda
 url_queues=$url_api/queues/gdi
 
 encrypt () {
+	# Encrypt the given files, if needed.
+
 	for pathname do
 		shift
 		case $pathname in
 			*.c4gh)
-				# Don't encrypt.
+				# Don't encrypt the file (it's already
+				# encrypted).
 				;;
 			*)
-				# Encrypt if there's no encrypted
-				# variant of the file.
+				# Encrypt the file if there's no
+				# encrypted variant of it.
 				[ ! -f "$pathname.c4gh" ] && set -- "$@" "$pathname"
 		esac
 	done
 
+	# If there are files to encrypt, encrypt them.
 	if [ "$#" -gt 0 ]; then
 		sda-cli encrypt -key "$sda_key" "$@"
 	fi
@@ -51,6 +55,7 @@ upload () {
 
 curl () {
 	# Helper function that makes curl calls a bit shorter.
+
 	command curl --silent \
 		--request POST \
 		--user "$mq_credentials" \
@@ -60,6 +65,7 @@ curl () {
 
 access_key () {
 	# Parses the S3 configuration file and outputs the access key.
+
 	sed	-e '/^access_key[[:blank:]]*=[[:blank:]]*/!d' \
 		-e 's///' -e 's/[[:blank:]]*$//' -e 'q' \
 		"$sda_config"
@@ -79,7 +85,8 @@ publish () {
 get_messages () {
 	# Retrieves the messages on the queue given by the 1st argument.
 	# The remaining arguments are filenames that we filter the
-	# messages with.  Any message that does not correspond to any
+	# messages with (togethur with the access key from the S3
+	# configuration).  Any message that does not correspond to any
 	# of the given filenames is requeued.  The remaining messages
 	# are individually base64-encoded and outputted on the standard
 	# output stream, one message per line of output.
@@ -128,6 +135,10 @@ get_messages () {
 }
 
 get_filenames () {
+	# Return the filenames present in the queue given by the 1st
+	# argument.  The messages in the queue are filtered on the
+	# access key from the S3 configuration.
+
 	queue=$1
 
 	access_key=$(access_key)
@@ -281,8 +292,8 @@ usage_general () {
 	    $myself [GLOBAL OPTIONS] [help] {upload|ingest|accession|dataset} [ARGUMENTS]
 
 	Global options:
-	    --sda-config pathname	SDA S3 configuration file	Default: $sda_config
-	    --sda-key pathname		SDA CRYPT4GH public key file	Default: $sda_key
+	    --sda-config pathname	SDA S3 configuration file	Currently: $sda_config
+	    --sda-key pathname		SDA CRYPT4GH public key file	Currently: $sda_key
 
 	Specific synopsis:
 	    $myself help
