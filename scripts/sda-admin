@@ -25,12 +25,16 @@ encrypt () {
 			*)
 				# Encrypt the file if there's no
 				# encrypted variant of it.
-				[ ! -f "$pathname.c4gh" ] && set -- "$@" "$pathname"
+				if [ ! -f "$pathname.c4gh" ]; then
+					set -- "$@" "$pathname"
+				fi
 		esac
 	done
 
 	# If there are files to encrypt, encrypt them.
-	[ "$#" -gt 0 ] && sda-cli encrypt -key "$SDA_KEY" "$@"
+	if [ "$#" -gt 0 ]; then
+		sda-cli encrypt -key "$SDA_KEY" "$@"
+	fi
 }
 
 upload () {
