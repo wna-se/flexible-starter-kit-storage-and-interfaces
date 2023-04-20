@@ -377,7 +377,7 @@ usage_accession () {
 
 	    $myself accession
 
-	    Accessions are only ever assiged to one file at a time.
+	    Accessions are only ever assigned to one file at a time.
 	    Assigning accessions to three files:
 
 	    $myself accession MYID001 file1
