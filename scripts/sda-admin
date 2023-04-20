@@ -4,13 +4,15 @@ set -u -e
 
 myself=$0
 
-# Default values for global options.
-mq_credentials=test:test	# --mq-credentials user:pass
-mq_host=localhost		# --mq-host hostname
-sda_config=s3cmd.conf		# --sda-config pathname
-sda_key=crypt4gh_key.pub	# --sda-key pathname
+# Default values for global options. Values in the environment override
+# these hard-coded defaults, and values set via command line options
+# override these later.
+MQ_CREDENTIALS=${MQ_CREDENTIALS-test:test}	# --mq-credentials user:pass
+MQ_URL=${MQ_URL-http://localhost:15672}		# --mq-url URL
+SDA_CONFIG=${SDA_CONFIG-s3cmd.conf}		# --sda-config pathname
+SDA_KEY=${SDA_KEY-crypt4gh_key.pub}		# --sda-key pathname
 
-url_api=http://$mq_host:15672/api
+url_api=http://$MQ_URL:15672/api
 url_exchanges=$url_api/exchanges/gdi/sda
 url_queues=$url_api/queues/gdi
 
@@ -32,7 +34,7 @@ encrypt () {
 	done
 
 	# If there are files to encrypt, encrypt them.
-	[ "$#" -gt 0 ] && sda-cli encrypt -key "$sda_key" "$@"
+	[ "$#" -gt 0 ] && sda-cli encrypt -key "$SDA_KEY" "$@"
 }
 
 upload () {
@@ -46,7 +48,7 @@ upload () {
 		set -- "$@" "$pathname"
 	done
 
-	sda-cli upload -config "$sda_config" "$@"
+	sda-cli upload -config "$SDA_CONFIG" "$@"
 }
 
 curl () {
@@ -54,7 +56,7 @@ curl () {
 
 	command curl --silent \
 		--request POST \
-		--user "$mq_credentials" \
+		--user "$MQ_CREDENTIALS" \
 		--header "Content-Type: application/json" \
 		"$@"
 }
@@ -64,7 +66,7 @@ access_key () {
 
 	sed	-e '/^access_key[[:blank:]]*=[[:blank:]]*/!d' \
 		-e 's///' -e 's/[[:blank:]]*$//' -e 'q' \
-		"$sda_config"
+		"$SDA_CONFIG"
 }
 
 publish () {
@@ -288,10 +290,10 @@ usage_general () {
 	    $myself [GLOBAL OPTIONS] [help] {upload|ingest|accession|dataset} [ARGUMENTS]
 
 	Global options:
-	    --mq-credentials user:pass	MQ credentials			Currently: $mq_credentials
-	    --mq-host hostname		MQ hostname			Currently: $mq_host
-	    --sda-config pathname	SDA S3 configuration file	Currently: $sda_config
-	    --sda-key pathname		SDA CRYPT4GH public key file	Currently: $sda_key
+	    --mq-credentials user:pass	MQ credentials			Currently: $MQ_CREDENTIALS
+	    --mq-host hostname		MQ hostname			Currently: $MQ_URL
+	    --sda-config pathname	SDA S3 configuration file	Currently: $SDA_CONFIG
+	    --sda-key pathname		SDA CRYPT4GH public key file	Currently: $SDA_KEY
 
 	Specific synopsis:
 	    $myself help
@@ -416,16 +418,16 @@ usage_dataset () {
 while true; do
 	case ${1-} in
 		--mq-credentials)
-			mq_credentials=$2
+			MQ_CREDENTIALS=$2
 			;;
 		--mq-host)
-			mq_host=$2
+			MQ_URL=$2
 			;;
 		--sda-config)
-			sda_config=$2
+			SDA_CONFIG=$2
 			;;
 		--sda-key)
-			sda_key=$2
+			SDA_KEY=$2
 			;;
 		*)
 			break
