@@ -442,7 +442,7 @@ while true; do
 	shift 2
 done
 
-url_api=http://$MQ_URL:15672/api
+url_api=$MQ_URL/api
 url_exchanges=$url_api/exchanges/gdi/sda
 url_queues=$url_api/queues/gdi
 
