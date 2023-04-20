@@ -364,7 +364,7 @@ usage_ingest () {
 
 usage_accession () {
 	cat <<-USAGE_ACCESSION
-	The "accession" sub-command is used for assignig an accession ID
+	The "accession" sub-command is used for assigning an accession ID
 	to a single file that has previously been ingested.  As with the
 	"ingest" sub-command, the filenames may be given with or without
 	the ".c4gh" filename suffix and with or without a full directory
