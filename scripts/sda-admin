@@ -13,22 +13,29 @@ SDA_CONFIG=${SDA_CONFIG-s3cmd.conf}		# --sda-config pathname
 SDA_KEY=${SDA_KEY-crypt4gh_key.pub}		# --sda-key pathname
 
 encrypt () {
-	# Encrypt the given files, if needed.
-
+	# Encrypt the given files.
+	#
+	# Files are encrypted unconditionally, regardless of whether
+	# there exists encrypted variants of the files or not.  The only
+	# scenario wherein a file is not re-encrypted is when the user
+	# gives us the pathname of an encrypted file and we can't find
+	# the unencrypted variant of the file by simply removing the
+	# ".c4gh" filename suffix.  If a file is re-encrypted, the old
+	# encrypted file is backed up with an additional ".bak" filename
+	# suffix.  Old backups are unceremoniously overwritten.
+	
 	for pathname do
 		shift
-		case $pathname in
-			*.c4gh)
-				# Don't encrypt the file (it's already
-				# encrypted).
-				;;
-			*)
-				# Encrypt the file if there's no
-				# encrypted variant of it.
-				if [ ! -f "$pathname.c4gh" ]; then
-					set -- "$@" "$pathname"
-				fi
-		esac
+		pathname=${pathname%.c4gh}
+		if [ ! -f "$pathname" ]; then
+			continue
+		fi
+		if [ -f "$pathname.c4gh" ]; then
+			printf 'Backing up "%s" to "%s" for re-encryption\n' \
+				"$pathname.c4gh" "$pathname.c4gh.bak" >&2
+			mv "$pathname.c4gh" "$pathname.c4gh.bak"
+		fi
+		set -- "$@" "$pathname"
 	done
 
 	# If there are files to encrypt, encrypt them.
