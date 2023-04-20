@@ -79,7 +79,7 @@ publish () {
 get_messages () {
 	# Retrieves the messages on the queue given by the 1st argument.
 	# The remaining arguments are filenames that we filter the
-	# messages with (togethur with the access key from the S3
+	# messages with (together with the access key from the S3
 	# configuration).  Any message that does not correspond to any
 	# of the given filenames is requeued.  The remaining messages
 	# are individually base64-encoded and outputted on the standard
