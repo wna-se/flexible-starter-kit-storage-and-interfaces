@@ -12,10 +12,6 @@ MQ_URL=${MQ_URL-http://localhost:15672}		# --mq-url URL
 SDA_CONFIG=${SDA_CONFIG-s3cmd.conf}		# --sda-config pathname
 SDA_KEY=${SDA_KEY-crypt4gh_key.pub}		# --sda-key pathname
 
-url_api=http://$MQ_URL:15672/api
-url_exchanges=$url_api/exchanges/gdi/sda
-url_queues=$url_api/queues/gdi
-
 encrypt () {
 	# Encrypt the given files, if needed.
 
@@ -434,6 +430,10 @@ while true; do
 	esac
 	shift 2
 done
+
+url_api=http://$MQ_URL:15672/api
+url_exchanges=$url_api/exchanges/gdi/sda
+url_queues=$url_api/queues/gdi
 
 # Handle sub-comands.
 case ${1-} in
