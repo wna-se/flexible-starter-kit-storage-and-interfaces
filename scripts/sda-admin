@@ -435,7 +435,7 @@ url_api=http://$MQ_URL:15672/api
 url_exchanges=$url_api/exchanges/gdi/sda
 url_queues=$url_api/queues/gdi
 
-# Handle sub-comands.
+# Handle sub-commands.
 case ${1-} in
 	upload|ingest|accession|dataset)
 		"$@"
