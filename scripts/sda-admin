@@ -330,18 +330,16 @@ usage_upload () {
 	Both encryption and uploading is carried out using "sda-cli".
 
 	If a given file is already encrypted (it has a ".c4gh" filename
-	suffix), it will not be re-encrypted.  If a given file exists
-	alongside a corresponding encrypted file, the encrypted file
-	will be used in place of the given file.  To ensure that each
-	file is freshly encrypted, remove all encrypted versions of the
-	files.
+	suffix) or if it is unencrypted but has a corresponding
+	encrypted version, it will be re-encrypted.  When re-encrypting
+	a file, the old encrypted file is renamed with an additional
+	".bak" filename suffix.  Old backups are overwritten.
 
 	Example usage:
 
 	    Files may be uploaded one by one or several at once.
-	    Encrypting and uploading three files (this creates
-	    "file1.c4gh", "file2.c4gh", and "file3.c4gh", if these files
-	    did not already exist):
+	    Encrypting and uploading three files (this creates or
+	    re-creates "file1.c4gh", "file2.c4gh", and "file3.c4gh"):
 
 	    $myself upload file1 file2
 	    $myself upload file3
