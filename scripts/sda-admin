@@ -12,6 +12,11 @@ MQ_URL=${MQ_URL-http://localhost:15672}		# --mq-url URL
 SDA_CONFIG=${SDA_CONFIG-s3cmd.conf}		# --sda-config pathname
 SDA_KEY=${SDA_KEY-crypt4gh_key.pub}		# --sda-key pathname
 
+# Allow a user to use the environment variable "SDA_CLI" to point
+# directly to the "sda-cli" executable.  If this environment variable is
+# not set, the tool will be picked up from "$PATH" as usual.
+SDA_CLI=${SDA_CLI-sda-cli}
+
 encrypt () {
 	# Encrypt the given files.
 	#
@@ -40,7 +45,7 @@ encrypt () {
 
 	# If there are files to encrypt, encrypt them.
 	if [ "$#" -gt 0 ]; then
-		sda-cli encrypt -key "$SDA_KEY" "$@"
+		"$SDA_CLI" encrypt -key "$SDA_KEY" "$@"
 	fi
 }
 
@@ -55,7 +60,7 @@ upload () {
 		set -- "$@" "$pathname"
 	done
 
-	sda-cli upload -config "$SDA_CONFIG" "$@"
+	"$SDA_CLI" upload -config "$SDA_CONFIG" "$@"
 }
 
 curl () {
