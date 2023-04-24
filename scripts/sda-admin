@@ -340,6 +340,13 @@ usage_upload () {
 	a file, the old encrypted file is renamed with an additional
 	".bak" filename suffix.  Old backups are overwritten.
 
+	This script uses "sda-cli" for encryption and uploading to the
+	S3 storage.  If the "SDA_CLI" environment variable is set, it
+	is assumed to hold the pathname of the "sda-cli" executable.
+	If the "SDA_CLI" variable is unset, the "sda-cli" executable
+	will be located using the user's "PATH" variable, like any other
+	command.
+
 	Example usage:
 
 	    Files may be uploaded one by one or several at once.
