@@ -1,0 +1,464 @@
+#!/bin/sh
+
+set -u -e
+
+myself=$0
+
+# Default values for global options. Values in the environment override
+# these hard-coded defaults, and values set via command line options
+# override these later.
+MQ_CREDENTIALS=${MQ_CREDENTIALS-test:test}	# --mq-credentials user:pass
+MQ_URL=${MQ_URL-http://localhost:15672}		# --mq-url URL
+SDA_CONFIG=${SDA_CONFIG-s3cmd.conf}		# --sda-config pathname
+SDA_KEY=${SDA_KEY-crypt4gh_key.pub}		# --sda-key pathname
+
+# Allow a user to use the environment variable "SDA_CLI" to point
+# directly to the "sda-cli" executable.  If this environment variable is
+# not set, the tool will be picked up from "$PATH" as usual.
+SDA_CLI=${SDA_CLI-sda-cli}
+
+encrypt () {
+	# Encrypt the given files.
+	#
+	# Files are encrypted unconditionally, regardless of whether
+	# there exists encrypted variants of the files or not.  The only
+	# scenario wherein a file is not re-encrypted is when the user
+	# gives us the pathname of an encrypted file and we can't find
+	# the unencrypted variant of the file by simply removing the
+	# ".c4gh" filename suffix.  If a file is re-encrypted, the old
+	# encrypted file is backed up with an additional ".bak" filename
+	# suffix.  Old backups are unceremoniously overwritten.
+	
+	for pathname do
+		shift
+		pathname=${pathname%.c4gh}
+		if [ ! -f "$pathname" ]; then
+			continue
+		fi
+		if [ -f "$pathname.c4gh" ]; then
+			printf 'Backing up "%s" to "%s" for re-encryption\n' \
+				"$pathname.c4gh" "$pathname.c4gh.bak" >&2
+			mv "$pathname.c4gh" "$pathname.c4gh.bak"
+		fi
+		set -- "$@" "$pathname"
+	done
+
+	# If there are files to encrypt, encrypt them.
+	if [ "$#" -gt 0 ]; then
+		"$SDA_CLI" encrypt -key "$SDA_KEY" "$@"
+	fi
+}
+
+upload () {
+	# Encrypt+upload using sda-cli.
+
+	encrypt "$@"
+
+	for pathname do
+		shift
+		pathname=${pathname%.c4gh}.c4gh
+		set -- "$@" "$pathname"
+	done
+
+	"$SDA_CLI" upload -config "$SDA_CONFIG" "$@"
+}
+
+curl () {
+	# Helper function that makes curl calls a bit shorter.
+
+	command curl --silent \
+		--request POST \
+		--user "$MQ_CREDENTIALS" \
+		--header "Content-Type: application/json" \
+		"$@"
+}
+
+access_key () {
+	# Parses the S3 configuration file and outputs the access key.
+
+	sed	-e '/^access_key[[:blank:]]*=[[:blank:]]*/!d' \
+		-e 's///' -e 's/[[:blank:]]*$//' -e 'q' \
+		"$SDA_CONFIG"
+}
+
+publish () {
+	# Will read base64-encoded messages from standard input, one
+	# per line, decode each message and publish it.  Any output is
+	# explicitly discarded.
+
+	while IFS= read -r message; do
+		printf "%s\n" "$message" | base64 -d |
+		curl --data @- "$url_exchanges/publish"
+	done >/dev/null
+}
+
+get_messages () {
+	# Retrieves the messages on the queue given by the 1st argument.
+	# The remaining arguments are filenames that we filter the
+	# messages with (together with the access key from the S3
+	# configuration).  Any message that does not correspond to any
+	# of the given filenames is requeued.  The remaining messages
+	# are individually base64-encoded and outputted on the standard
+	# output stream, one message per line of output.
+
+	queue=$1
+	shift
+
+	access_key=$(access_key)
+
+	for pathname do
+		shift
+		pathname=$access_key/$(basename "$pathname" .c4gh).c4gh
+		set -- "$@" "$pathname"
+	done
+
+	tmpfile=$(mktemp)
+	# shellcheck disable=SC2064
+	trap "rm '$tmpfile'" EXIT
+
+	# Get upload messages and ACK them all without requeuing them.
+	# This empties the queue.
+	#
+	curl --data '{"count":-1,"encoding":"base64","ackmode":"ack_requeue_false"}' \
+		"$url_queues/$queue/get" >"$tmpfile"
+
+	# Requeue the messages that we're not interested in.
+	#
+	# Note that we only requeue unique messages, based on the file
+	# path stored in each message's payload.
+	#
+	jq -r 'JOIN(INDEX($ARGS.positional | unique[]; .);
+		unique_by(.payload | @base64d | fromjson.filepath)[];
+		.payload | @base64d | fromjson.filepath;
+		if .[1] then empty else .[0] | @base64 end)' \
+		--args "$@" <"$tmpfile" |
+	publish
+
+	# Filter out (extract) the the set of messages that we want to
+	# keep.  This set does not contain any duplicated file paths.
+	#
+	jq -r 'JOIN(INDEX($ARGS.positional | unique[]; .);
+		unique_by(.payload | @base64d | fromjson.filepath)[];
+		.payload | @base64d | fromjson.filepath;
+		if .[1] then .[0] | @base64 else empty end)' \
+		--args "$@" <"$tmpfile"
+}
+
+get_filenames () {
+	# Return the filenames present in the queue given by the 1st
+	# argument.  The messages in the queue are filtered on the
+	# access key from the S3 configuration.
+
+	queue=$1
+
+	access_key=$(access_key)
+
+	curl --data \
+		'{"count":-1,"encoding":"base64","ackmode":"ack_requeue_true"}' \
+		"$url_queues/$queue/get" |
+	jq -r --arg access_key "$access_key" '
+		map(.payload | @base64d | fromjson |
+		select(.filepath | startswith($access_key + "/")).filepath |
+			sub(".*?/"; "")) | unique[]'
+}
+
+ingest () {
+	# Ingest the given filenames.
+
+	# If no arguments are given, list the filenames that may be
+	# processed, then return immediately.
+	#
+	if [ "$#" -eq 0 ]; then
+		get_filenames inbox
+		return
+	fi
+
+	# Get the messages that we want from the "inbox" queue, then
+	# rewrite them into ingest messages and publish them.
+	#
+	get_messages inbox "$@" |
+	jq -r -R '@base64d | fromjson |
+		.payload |= (
+			@base64d | fromjson |
+			.type = "ingest" |
+			del(.filesize,.operation) |
+			@base64
+		) |
+		.routing_key = "ingest" |
+		del(.payload_bytes) |
+		@base64' |
+	publish
+}
+
+accession () {
+	# Assign accession IDs to ingested files.
+
+	# If no arguments are given, list the filenames that may be
+	# processed, then return immediately.
+	#
+	if [ "$#" -eq 0 ]; then
+		get_filenames verified
+		return
+	fi
+
+	# We expect exactly two arguments here; one accession ID and one
+	# filename.
+	#
+	if [ "$#" -ne 2 ]; then
+		usage_accession >&2
+		return 1
+	fi
+
+	accession_id=$1
+	shift
+
+	# Get the message that we want from the "verified" queue (there
+	# will be at most one message as they are deduplicated based
+	# on the file path, and we're only querying using a single
+	# filename), then rewrite them into ingest messages and publish
+	# them.
+	#
+	get_messages verified "$@" |
+	jq -r -R --arg accession_id "$accession_id" '
+		@base64d | fromjson |
+		.payload |= (
+			@base64d | fromjson |
+			.type = "accession" |
+			.accession_id = $accession_id |
+			del(.filesize,.operation) |
+			@base64
+		) |
+		.routing_key = "accessionIDs" |
+		del(.payload_bytes) |
+		@base64' |
+	publish
+}
+
+dataset () {
+	# Collect filenames into datasets.
+
+	# If no arguments are given, list the files that may be
+	# processed, then return immediately.
+	#
+	if [ "$#" -eq 0 ]; then
+		get_filenames completed
+		return
+	fi
+
+	# We expect at least two arguments here; one dataset ID and at
+	# least one filename.
+	#
+	if [ "$#" -lt 2 ]; then
+		usage_dataset >&2
+		return 1
+	fi
+
+	dataset_id=$1
+	shift
+
+	# Get the messages that we want from the "completed" queue, and
+	# assign the accession IDs from these to the given dataset ID.
+	#
+	get_messages completed "$@" |
+	jq -r -R -n --arg dataset_id "$dataset_id" '
+		{
+			properties: {
+				delivery_mode: 2,
+				content_encoding: "UTF-8",
+				content_type: "application/json"
+			},
+			routing_key: "mappings",
+			payload: {
+				type: "mapping",
+				dataset_id: $dataset_id,
+				accession_ids: [
+					inputs |
+					@base64d | fromjson.payload |
+					@base64d | fromjson.accession_id
+				]
+			} | @base64,
+			payload_encoding: "base64"
+		} | @base64' |
+	publish
+}
+
+usage () {
+	case ${1-} in
+		upload|ingest|accession|dataset)
+			"usage_$1"
+			;;
+		"")
+			usage_general
+			;;
+		*)
+			usage_general >&2
+			return 1
+	esac
+}
+
+usage_general () {
+	cat <<-USAGE_GENERAL
+	General synopsis:
+	    $myself [GLOBAL OPTIONS] [help] {upload|ingest|accession|dataset} [ARGUMENTS]
+
+	Global options:
+	    --mq-credentials user:pass	MQ credentials			Currently: $MQ_CREDENTIALS
+	    --mq-url URL		MQ URL				Currently: $MQ_URL
+	    --sda-config pathname	SDA S3 configuration file	Currently: $SDA_CONFIG
+	    --sda-key pathname		SDA CRYPT4GH public key file	Currently: $SDA_KEY
+
+	Specific synopsis:
+	    $myself help
+
+	    $myself [...] upload pathname [pathname...]
+	    $myself help upload
+
+	    $myself [...] ingest filename [filename...]
+	    $myself [...] ingest
+	    $myself help ingest
+
+	    $myself [...] accession accessionID filename
+	    $myself [...] accession
+	    $myself help accession
+
+	    $myself [...] dataset datasetID filename [filename...]
+	    $myself [...] dataset
+	    $myself help dataset
+
+	USAGE_GENERAL
+}
+
+usage_upload () {
+	cat <<-USAGE_UPLOAD
+	The "upload" sub-command is used for encrypting and uploading
+	one or several files to the configured S3 storage's inbox.
+	Both encryption and uploading is carried out using "sda-cli".
+
+	If a given file is already encrypted (it has a ".c4gh" filename
+	suffix) or if it is unencrypted but has a corresponding
+	encrypted version, it will be re-encrypted.  When re-encrypting
+	a file, the old encrypted file is renamed with an additional
+	".bak" filename suffix.  Old backups are overwritten.
+
+	Example usage:
+
+	    Files may be uploaded one by one or several at once.
+	    Encrypting and uploading three files (this creates or
+	    re-creates "file1.c4gh", "file2.c4gh", and "file3.c4gh"):
+
+	    $myself upload file1 file2
+	    $myself upload file3
+
+	USAGE_UPLOAD
+}
+
+usage_ingest () {
+	cat <<-USAGE_INGEST
+	The "ingest" sub-command is used for ingesting one or several
+	uploaded files.  The filenames to be ingested may be given with
+	or without the ".c4gh" filename suffix and with or without a
+	full directory path (the suffix will be added to names that lack
+	it, and any directory path will be ignored).
+
+	Example usage:
+
+	    Listing the filenames currently in the "inbox" queue waiting
+	    to be ingested:
+
+	    $myself ingest
+
+	    Files may be ingested one by one or several at once.
+	    Ingesting three files:
+
+	    $myself ingest file1 file2
+	    $myself ingest file3
+
+	USAGE_INGEST
+}
+
+usage_accession () {
+	cat <<-USAGE_ACCESSION
+	The "accession" sub-command is used for assigning an accession ID
+	to a single file that has previously been ingested.  As with the
+	"ingest" sub-command, the filenames may be given with or without
+	the ".c4gh" filename suffix and with or without a full directory
+	path.
+
+	Example usage:
+
+	    Listing the filenames currently in the "verified" queue
+	    waiting to have accession IDs assigned to them:
+
+	    $myself accession
+
+	    Accessions are only ever assigned to one file at a time.
+	    Assigning accessions to three files:
+
+	    $myself accession MYID001 file1
+	    $myself accession MYID002 file2
+	    $myself accession MYID003 file3
+
+	USAGE_ACCESSION
+}
+
+usage_dataset () {
+	cat <<-USAGE_DATASET
+	The "dataset" sub-command is used for associating one or several
+	files to a single dataset ID.  As with the "ingest" sub-command,
+	the filenames may be given with or without the ".c4gh" filename
+	suffix and with or without a full directory path.
+
+	Example usage:
+
+	    Listing the filenames currently in the "completed" queue
+	    waiting to be associated with a dataset ID:
+
+	    $myself dataset
+
+	    Files are associated to dataset IDs one at a time or several
+	    at once.  Associating three files with a dataset ID:
+
+	    $myself dataset MYSET001 file1 file2
+	    $myself dataset MYSET001 file3
+
+	USAGE_DATASET
+}
+
+# Handle global options.
+while true; do
+	case ${1-} in
+		--mq-credentials)
+			MQ_CREDENTIALS=$2
+			;;
+		--mq-url)
+			MQ_URL=$2
+			;;
+		--sda-config)
+			SDA_CONFIG=$2
+			;;
+		--sda-key)
+			SDA_KEY=$2
+			;;
+		*)
+			break
+	esac
+	shift 2
+done
+
+url_api=$MQ_URL/api
+url_exchanges=$url_api/exchanges/gdi/sda
+url_queues=$url_api/queues/gdi
+
+# Handle sub-commands.
+case ${1-} in
+	upload|ingest|accession|dataset)
+		"$@"
+		;;
+	help)
+		shift
+		usage "$@"
+		;;
+	*)
+		usage >&2
+		exit 1
+esac
