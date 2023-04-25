@@ -310,7 +310,7 @@ usage_general () {
 	Specific synopsis:
 	    $myself help
 
-	    $myself [...] upload pathname [pathname...]
+	    $myself [...] upload [-t target-path] pathname [pathname...]
 	    $myself help upload
 
 	    $myself [...] ingest filename [filename...]
@@ -331,14 +331,20 @@ usage_general () {
 usage_upload () {
 	cat <<-USAGE_UPLOAD
 	The "upload" sub-command is used for encrypting and uploading
-	one or several files to the configured S3 storage's inbox.
-	Both encryption and uploading is carried out using "sda-cli".
+	one or several files or directories to the configured S3
+	storage's inbox.  Any file or directory given as an operand is
+	uploaded to the top-level of the S3 inbox.  Directories are
+	uploaded recursively and files within them maintain their place
+	in the directory structure rooted at the named directory.
 
-	If a given file is already encrypted (it has a ".c4gh" filename
-	suffix) or if it is unencrypted but has a corresponding
-	encrypted version, it will be re-encrypted.  When re-encrypting
-	a file, the old encrypted file is renamed with an additional
-	".bak" filename suffix.  Old backups are overwritten.
+	The "upload" sub-command takes an optional "-t" option whose
+	option-argument will be used as a target directory path beneath
+	the S3 inbox.  The given target path may not contain thes
+	substring ".." and any initial "/" will be removed.  See
+	examples further down.
+
+	Files are unconditionally re-encrypted.  Any existing encrypted
+	copy of a file will be overwritten.
 
 	This script uses "sda-cli" for encryption and uploading to the
 	S3 storage.  If the "SDA_CLI" environment variable is set, it
@@ -351,10 +357,23 @@ usage_upload () {
 
 	    Files may be uploaded one by one or several at once.
 	    Encrypting and uploading three files (this creates or
-	    re-creates "file1.c4gh", "file2.c4gh", and "file3.c4gh"):
+	    re-creates "file1.c4gh", "file2.c4gh", and "file3.c4gh").
+	    All three files are placed at the top-level of the inbox.
 
 	    $myself upload file1 file2
-	    $myself upload file3
+	    $myself upload dir/file3
+
+	    The following encrypts and uploads all files in the "data"
+	    subdirectory.  The files will retain their relative location
+	    under a "data" subdirectory in the S3 inbox.
+
+	    $myself upload data
+
+	    Using the "-t" option, the target directory can be set to
+	    some other path under the top-level inbox.  Using e.g. "-t
+	    project/files" with the examples above would have the effect
+	    of displacing the upload to a top-level path "project/files"
+	    directory in the inbox,
 
 	USAGE_UPLOAD
 }
