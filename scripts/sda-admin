@@ -4,7 +4,7 @@ set -u -e
 
 myself=$0
 
-# Default values for global options. Values in the environment override
+# Default values for global options.  Values in the environment override
 # these hard-coded defaults, and values set via command line options
 # override these later.
 MQ_CREDENTIALS=${MQ_CREDENTIALS-test:test}	# --mq-credentials user:pass
@@ -22,24 +22,41 @@ encrypt () {
 	#
 	# Files are encrypted unconditionally, regardless of whether
 	# there exists encrypted variants of the files or not.  The only
-	# scenario wherein a file is not re-encrypted is when the user
+	# scenario wherein a file is not encrypted is when the user
 	# gives us the pathname of an encrypted file and we can't find
 	# the unencrypted variant of the file by simply removing the
-	# ".c4gh" filename suffix.  If a file is re-encrypted, the old
-	# encrypted file is backed up with an additional ".bak" filename
-	# suffix.  Old backups are unceremoniously overwritten.
+	# ".c4gh" filename suffix.
+	#
+	# Directories and other non-regular files are ignored.
 	
 	for pathname do
 		shift
-		pathname=${pathname%.c4gh}
-		if [ ! -f "$pathname" ]; then
+
+		if [ ! -f "$pathname" ] || [ ! -f "${pathname%.c4gh}" ]
+		then
+			# Skip if we are given something that doesn't
+			# exist or isn't a regular file, or if the
+			# variant of the filename with no ".c4gh" suffix
+			# does not exist or isn't a regular file.
 			continue
 		fi
-		if [ -f "$pathname.c4gh" ]; then
-			printf 'Backing up "%s" to "%s" for re-encryption\n' \
-				"$pathname.c4gh" "$pathname.c4gh.bak" >&2
-			mv "$pathname.c4gh" "$pathname.c4gh.bak"
-		fi
+
+		pathname=${pathname%.c4gh}
+
+		# Skip if the unencrypted pathname is already in the
+		# list.
+		for dup do
+			if [ "$pathname" = "$dup" ]; then
+				continue 2
+			fi
+		done
+
+		# Remove the encrypted variant of the file, if it
+		# exists.
+		rm -f "$pathname.c4gh"
+
+		# Remember the unencrypted variant of the file for
+		# encryption later.
 		set -- "$@" "$pathname"
 	done
 
@@ -50,17 +67,85 @@ encrypt () {
 }
 
 upload () {
-	# Encrypt+upload using sda-cli.
+	# Encrypt+upload using "sda-cli".
+	#
+	# Files are uploaded to the top-level directory of the S3
+	# storage bucket, offset by the target directory path given by
+	# the option-argument of the "-t" option.
+	#
+	# Directories are handled recursively and will be uploaded to
+	# the target directory path given by the directory name, offset
+	# by the target path given by the option-argument of the "-t"
+	# option.
 
-	encrypt "$@"
+	OPTIND=1
+	unset -v target_dir
+	while getopts t: opt; do
+		case $opt in
+			t)
+				target_dir=$OPTARG
+				;;
+			*)
+				echo 'Error in command line parsing' >&2
+				exit 1
+		esac
+	done
+	shift "$(( OPTIND - 1 ))"
+
+	# Sanity check the target directory path.
+	case ${target_dir-} in
+		*..*)
+			echo 'Target path contains ".."' >&2
+			exit 1
+			;;
+		/*)
+			echo 'Target path is absolute' >&2
+			exit 1
+	esac
 
 	for pathname do
 		shift
-		pathname=${pathname%.c4gh}.c4gh
+		if [ -d "$pathname" ]; then
+			# Recursively encrypt and upload the directory.
+			# We do this in a subshell to isolate the
+			# changes made to the "target_dir" variable in
+			# the recursive call.
+			(
+				upload -t "${target_dir-.}/$(basename "$pathname")" \
+					"$pathname"/*
+			)
+			continue
+		fi
 		set -- "$@" "$pathname"
 	done
 
-	"$SDA_CLI" upload -config "$SDA_CONFIG" "$@"
+	encrypt "$@"
+
+	# Ensure that our list only consists of encrypted files that
+	# exists, and that this list does not contain duplicate entries.
+	for pathname do
+		shift
+		pathname=${pathname%.c4gh}.c4gh
+
+		if [ ! -f "$pathname" ]; then
+			continue
+		fi
+
+		for dup do
+			if [ "$pathname" = "$dup" ]; then
+				continue 2
+			fi
+		done
+
+		set -- "$@" "$pathname"
+	done
+
+	if [ "$#" -gt 0 ]; then
+		"$SDA_CLI" upload \
+			-config "$SDA_CONFIG" \
+			${target_dir+-targetDir "$target_dir"} \
+			"$@"
+	fi
 }
 
 curl () {
