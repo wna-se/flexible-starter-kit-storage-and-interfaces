@@ -177,14 +177,45 @@ publish () {
 	done >/dev/null
 }
 
+# 
+jq_filter='
+# Set .idx_file to the filepath, and .idx_dir to the parent directory of .idx_file.
+map(.idx_file = (.payload | @base64d | fromjson.filepath) |
+    .idx_dir = (.idx_file | sub("/[^/]+$"; "/"))) |
+# Deduplicate messages by .idx_file and store them in $messages.
+unique_by(.idx_file) as $messages |
+# Create an index of arguments.
+INDEX($ARGS.positional[]; .) as $index |
+[
+    # Join each message in $messages with $index on .idx_file.
+    JOIN($index; $messages[]; .idx_file;
+      if .[1] then .[0] else empty end
+    ),
+    # Group messages by .idx_dir, and join each group with $index on .idx_dir.
+    JOIN($index; $messages | group_by(.idx_dir)[]; first.idx_dir;
+      if .[1] then .[0][] else empty end
+    )
+] |
+# Deduplicate messages by .idx_file and store them in $matched.
+unique_by(.idx_file) as $matched |
+# For each message in $messages,
+# select it if it is in $matched and $yes is true; otherwise, exclude it.
+$messages[] | select(IN($matched[]) | if $yes then . else not end) |
+# Delete .idx_file and .idx_dir, and encode the result in base64.
+del(.idx_file, .idx_dir) | @base64
+'
+
 get_messages () {
 	# Retrieves the messages on the queue given by the 1st argument.
-	# The remaining arguments are filenames that we filter the
+	# The remaining arguments are pathnames that we filter the
 	# messages with (together with the access key from the S3
 	# configuration).  Any message that does not correspond to any
-	# of the given filenames is requeued.  The remaining messages
+	# of the given pathnames is requeued.  The remaining messages
 	# are individually base64-encoded and outputted on the standard
 	# output stream, one message per line of output.
+	#
+	# If a given pathname ends with a slash, then all messages with
+	# file paths rooted at that path will be returned.
 
 	queue=$1
 	shift
@@ -193,7 +224,7 @@ get_messages () {
 
 	for pathname do
 		shift
-		pathname=$access_key/$(basename "$pathname" .c4gh).c4gh
+		pathname=$access_key/$pathname
 		set -- "$@" "$pathname"
 	done
 
@@ -212,21 +243,16 @@ get_messages () {
 	# Note that we only requeue unique messages, based on the file
 	# path stored in each message's payload.
 	#
-	jq -r 'JOIN(INDEX($ARGS.positional | unique[]; .);
-		unique_by(.payload | @base64d | fromjson.filepath)[];
-		.payload | @base64d | fromjson.filepath;
-		if .[1] then empty else .[0] | @base64 end)' \
-		--args "$@" <"$tmpfile" |
+	jq -r --argjson yes false "$jq_filter" --args "$@" <"$tmpfile" |
 	publish
 
 	# Filter out (extract) the the set of messages that we want to
 	# keep.  This set does not contain any duplicated file paths.
 	#
-	jq -r 'JOIN(INDEX($ARGS.positional | unique[]; .);
-		unique_by(.payload | @base64d | fromjson.filepath)[];
-		.payload | @base64d | fromjson.filepath;
-		if .[1] then .[0] | @base64 else empty end)' \
-		--args "$@" <"$tmpfile"
+	jq -r --argjson yes true "$jq_filter" --args "$@" <"$tmpfile"
+
+	rm -f "$tmpfile"
+	trap - EXIT
 }
 
 get_filenames () {
