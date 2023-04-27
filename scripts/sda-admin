@@ -332,9 +332,11 @@ accession () {
 	fi
 
 	# We expect exactly two arguments here; one accession ID and one
-	# filename.
+	# filename.  The filename should not end in a slash.
 	#
-	if [ "$#" -ne 2 ]; then
+	if	[ "$#" -ne 2 ] ||
+		case $2 in (*/) true;; (*) false; esac
+	then
 		usage_accession >&2
 		return 1
 	fi
