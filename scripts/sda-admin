@@ -177,33 +177,53 @@ publish () {
 	done >/dev/null
 }
 
-# 
-jq_filter='
-# Set .idx_file to the filepath, and .idx_dir to the parent directory of .idx_file.
-map(.idx_file = (.payload | @base64d | fromjson.filepath) |
-    .idx_dir = (.idx_file | sub("/[^/]+$"; "/"))) |
-# Deduplicate messages by .idx_file and store them in $messages.
-unique_by(.idx_file) as $messages |
-# Create an index of arguments.
-INDEX($ARGS.positional[]; .) as $index |
+jq_filter=$(cat <<'JQ_FILTER'
+map(
+	# Add an array of pathnames that would match this message.  This
+	# includes the pathnames of each parent directory, leading up to
+	# and including the pathname of the file itself.
+	.tmp_paths = [
+		# The file's full pathname is part of a base64-encodod
+		# JSON blob.
+		foreach (
+			.payload |
+			@base64d |
+			fromjson.filepath |
+			split("/")[]
+		) as $elem (
+			null;
+			. += $elem + "/";
+			.
+		)
+	] |
+	# The last element is the full file path and should not have a
+	# trailing slash.
+	.tmp_paths[-1] |= rtrimstr("/")
+) |
 [
-    # Join each message in $messages with $index on .idx_file.
-    JOIN($index; $messages[]; .idx_file;
-      if .[1] then .[0] else empty end
-    ),
-    # Group messages by .idx_dir, and join each group with $index on .idx_dir.
-    JOIN($index; $messages | group_by(.idx_dir)[]; first.idx_dir;
-      if .[1] then .[0][] else empty end
-    )
+	# Match the pathnames given as positional command line arguments
+	# against the computed pathnames in the "tmp_paths" array in
+	# each message.  Depending on the $yes boolean variable, extract
+	# or discard matching messages.
+	JOIN(
+		INDEX($ARGS.positional[]; .);
+		.[];
+		.tmp_paths[];
+		if (.[1:] | any | if $yes then . else not end) then
+			.[0]
+		else
+			empty
+		end
+	)
 ] |
-# Deduplicate messages by .idx_file and store them in $matched.
-unique_by(.idx_file) as $matched |
-# For each message in $messages,
-# select it if it is in $matched and $yes is true; otherwise, exclude it.
-$messages[] | select(IN($matched[]) | if $yes then . else not end) |
-# Delete .idx_file and .idx_dir, and encode the result in base64.
-del(.idx_file, .idx_dir) | @base64
-'
+# Deduplicate the extracted messages on the full pathname of the file.
+# Then remove the "tmp_paths" array from each message and base64 encode
+# them.
+unique_by(.tmp_paths[-1])[] |
+del(.tmp_paths) |
+@base64
+JQ_FILTER
+)
 
 get_messages () {
 	# Retrieves the messages on the queue given by the 1st argument.
@@ -215,7 +235,7 @@ get_messages () {
 	# output stream, one message per line of output.
 	#
 	# If a given pathname ends with a slash, then all messages with
-	# file paths rooted at that path will be returned.
+	# file paths in that directory will be returned.
 
 	queue=$1
 	shift
