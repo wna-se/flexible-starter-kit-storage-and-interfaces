@@ -180,10 +180,10 @@ publish () {
 jq_filter=$(cat <<'JQ_FILTER'
 map(
 	# Add an array of pathnames that would match this message.  This
-	# includes the pathnames of each parent directory, leading up to
+	# includes the pathname of each parent directory, leading up to
 	# and including the pathname of the file itself.
 	.tmp_paths = [
-		# The file's full pathname is part of a base64-encodod
+		# The file's full pathname is part of a base64-encoded
 		# JSON blob.
 		foreach (
 			.payload |
@@ -201,10 +201,10 @@ map(
 	.tmp_paths[-1] |= rtrimstr("/")
 ) |
 [
-	# Match the pathnames given as positional command line arguments
-	# against the computed pathnames in the "tmp_paths" array in
-	# each message.  Depending on the $yes boolean variable, extract
-	# or discard matching messages.
+	# Match the pathnames given as positional arguments against the
+	# computed pathnames in the "tmp_paths" array in each message.
+	# Depending on the $yes boolean variable, extract or discard
+	# matching messages.
 	JOIN(
 		INDEX($ARGS.positional[]; .);
 		.[];
@@ -216,12 +216,11 @@ map(
 		end
 	)
 ] |
-# Deduplicate the extracted messages on the full pathname of the file.
-# Then remove the "tmp_paths" array from each message and base64 encode
+# Deduplicate the extracted messages on the full pathname of the file,
+# then remove the "tmp_paths" array from each message and base64 encode
 # them.
-unique_by(.tmp_paths[-1])[] |
-del(.tmp_paths) |
-@base64
+unique_by(.tmp_paths[-1]) |
+map( del(.tmp_paths) | @base64 )[]
 JQ_FILTER
 )
 
@@ -235,7 +234,7 @@ get_messages () {
 	# output stream, one message per line of output.
 	#
 	# If a given pathname ends with a slash, then all messages with
-	# file paths in that directory will be returned.
+	# file paths in or below that directory will be returned.
 
 	queue=$1
 	shift
