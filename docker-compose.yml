@@ -50,6 +50,17 @@ services:
     depends_on:
       credentials:
         condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "sh",
+          "-c",
+          "kill -0 $(cat /tmp/server.pid)"
+        ]
+      interval: 5s
+      timeout: 20s
+      retries: 3
     image: python:3.10-slim
     networks:
       - public
