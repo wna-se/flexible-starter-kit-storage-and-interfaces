@@ -555,10 +555,7 @@ usage_ingest () {
 usage_accession () {
 	cat <<-USAGE_ACCESSION
 	The "accession" sub-command is used for assigning an accession ID
-	to a single file that has previously been ingested.  As with the
-	"ingest" sub-command, the filenames may be given with or without
-	the ".c4gh" filename suffix and with or without a full directory
-	path.
+	to a single file that has previously been ingested.
 
 	Example usage:
 
@@ -580,9 +577,9 @@ usage_accession () {
 usage_dataset () {
 	cat <<-USAGE_DATASET
 	The "dataset" sub-command is used for associating one or several
-	files to a single dataset ID.  As with the "ingest" sub-command,
-	the filenames may be given with or without the ".c4gh" filename
-	suffix and with or without a full directory path.
+	files to a single dataset ID.  If a directory path is given with
+	a slash at the end, all files in or beneath that directory will
+	be associated to the given dataset ID.
 
 	Example usage:
 
@@ -594,8 +591,13 @@ usage_dataset () {
 	    Files are associated to dataset IDs one at a time or several
 	    at once.  Associating three files with a dataset ID:
 
-	    $myself dataset MYSET001 file1 file2
-	    $myself dataset MYSET001 file3
+	    $myself dataset MYSET00A file1 file2
+	    $myself dataset MYSET00A file3
+
+	    Associate all files in or beneath the path
+	    "project/data/set1" to a dataset ID:
+
+	    $myself dataset MYSET001 project/data/set1/
 
 	USAGE_DATASET
 }
