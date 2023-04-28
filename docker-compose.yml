@@ -44,7 +44,7 @@ services:
         pip install --upgrade pip
         pip install aiohttp Authlib
         python -u /oidc.py &
-        echo "$!" >/tmp/server.pid
+        echo "$$!" >/tmp/server.pid
         wait
     container_name: oidc
     depends_on:
@@ -56,7 +56,7 @@ services:
           "CMD",
           "sh",
           "-c",
-          "kill -0 $(cat /tmp/server.pid)"
+          "kill -0 $$(cat /tmp/server.pid)"
         ]
       interval: 5s
       timeout: 20s
