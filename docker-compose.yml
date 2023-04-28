@@ -160,7 +160,7 @@ services:
       credentials:
         condition: service_completed_successfully
       oidc:
-        condition: service_started
+        condition: service_healthy
       postgres:
         condition: service_healthy
       s3:
