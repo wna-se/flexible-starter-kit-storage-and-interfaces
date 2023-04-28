@@ -18,7 +18,7 @@ SDA_KEY=${SDA_KEY-crypt4gh_key.pub}		# --sda-key pathname
 SDA_CLI=${SDA_CLI-sda-cli}
 
 encrypt () {
-	# Encrypt the given files.
+	# Encrypt the given files using "sda-cli".
 	#
 	# Files are encrypted unconditionally, regardless of whether
 	# there exists encrypted variants of the files or not.  The only
@@ -28,7 +28,7 @@ encrypt () {
 	# ".c4gh" filename suffix.
 	#
 	# Directories and other non-regular files are ignored.
-	
+
 	for pathname do
 		shift
 
@@ -121,8 +121,9 @@ upload () {
 
 	encrypt "$@"
 
-	# Ensure that our list only consists of encrypted files that
-	# exists, and that this list does not contain duplicate entries.
+	# Ensure that our list of files to upload only consists of
+	# encrypted files that exists, and that this list does not
+	# contain duplicate entries.
 	for pathname do
 		shift
 		pathname=${pathname%.c4gh}.c4gh
@@ -140,6 +141,8 @@ upload () {
 		set -- "$@" "$pathname"
 	done
 
+	# If there are files to upload, upload them, possibly in a
+	# subdirectory of the user's S3 bucket.
 	if [ "$#" -gt 0 ]; then
 		"$SDA_CLI" upload \
 			-config "$SDA_CONFIG" \
@@ -234,7 +237,9 @@ get_messages () {
 	# output stream, one message per line of output.
 	#
 	# If a given pathname ends with a slash, then all messages with
-	# file paths in or below that directory will be returned.
+	# file paths in or below that directory will be returned.  If
+	# the given pathname is an empty string (""), then all messages
+	# are returned.
 
 	queue=$1
 	shift
@@ -293,7 +298,8 @@ get_filenames () {
 }
 
 ingest () {
-	# Ingest the given filenames.
+	# Ingest the given filenames.  If given a directory path ending
+	# with a slash, ingest all files in or below that path.
 
 	# If no arguments are given, list the filenames that may be
 	# processed, then return immediately.
@@ -347,8 +353,8 @@ accession () {
 	# Get the message that we want from the "verified" queue (there
 	# will be at most one message as they are deduplicated based
 	# on the file path, and we're only querying using a single
-	# filename), then rewrite them into ingest messages and publish
-	# them.
+	# filename), then rewrite them into accession messages and
+	# publish them.
 	#
 	get_messages verified "$@" |
 	jq -r -R --arg accession_id "$accession_id" '
@@ -367,7 +373,9 @@ accession () {
 }
 
 dataset () {
-	# Collect filenames into datasets.
+	# Collect filenames into datasets.  If a directory path is
+	# given with a slash at the end, all files in or beneath that
+	# directory will be assigned to the given dataset ID.
 
 	# If no arguments are given, list the files that may be
 	# processed, then return immediately.
