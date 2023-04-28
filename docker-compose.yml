@@ -59,8 +59,8 @@ services:
           "kill -0 $$(cat /tmp/server.pid)"
         ]
       interval: 5s
-      timeout: 20s
-      retries: 3
+      timeout: 10s
+      retries: 20
     image: python:3.10-slim
     networks:
       - public
