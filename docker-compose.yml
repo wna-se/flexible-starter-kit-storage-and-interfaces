@@ -43,7 +43,9 @@ services:
       - |
         pip install --upgrade pip
         pip install aiohttp Authlib
-        python -u /oidc.py
+        python -u /oidc.py &
+        echo "$!" >/tmp/server.pid
+        wait
     container_name: oidc
     depends_on:
       credentials:
