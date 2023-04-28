@@ -453,17 +453,22 @@ usage_general () {
 	    $myself [...] upload [-t target-path] pathname [pathname...]
 	    $myself help upload
 
-	    $myself [...] ingest filename [filename...]
+	    $myself [...] ingest pathname [pathname...]
 	    $myself [...] ingest
 	    $myself help ingest
 
-	    $myself [...] accession accessionID filename
+	    $myself [...] accession accessionID pathname
 	    $myself [...] accession
 	    $myself help accession
 
-	    $myself [...] dataset datasetID filename [filename...]
+	    $myself [...] dataset datasetID pathname [pathname...]
 	    $myself [...] dataset
 	    $myself help dataset
+
+	Environment variables:
+	    SDA_CLI     Pathname of the "sda-cli" executable.  If unset,
+	                the utility will be located using your "PATH"
+	                variable, as is done for any ordinary utility.
 
 	USAGE_GENERAL
 }
@@ -479,9 +484,8 @@ usage_upload () {
 
 	The "upload" sub-command takes an optional "-t" option whose
 	option-argument will be used as a target directory path beneath
-	the S3 inbox.  The given target path may not contain thes
-	substring ".." and any initial "/" will be removed.  See
-	examples further down.
+	the S3 inbox.  The given target path may not contain the
+	substring ".." nor an initial "/".  See examples further down.
 
 	Files are unconditionally re-encrypted.  Any existing encrypted
 	copy of a file will be overwritten.
@@ -495,17 +499,18 @@ usage_upload () {
 
 	Example usage:
 
-	    Files may be uploaded one by one or several at once.
-	    Encrypting and uploading three files (this creates or
-	    re-creates "file1.c4gh", "file2.c4gh", and "file3.c4gh").
-	    All three files are placed at the top-level of the inbox.
+	    Files may be uploaded one by one or several at once.  The
+	    following two commands encrypts and uploads three files
+	    (this creates or re-creates "file1.c4gh", "file2.c4gh", and
+	    "file3.c4gh").  All three files are placed at the top-level
+	    of the inbox.
 
 	    $myself upload file1 file2
 	    $myself upload dir/file3
 
-	    The following encrypts and uploads all files in the "data"
-	    subdirectory.  The files will retain their relative location
-	    under a "data" subdirectory in the S3 inbox.
+	    The following command encrypts and uploads all files in the
+	    "data" subdirectory.  The files will retain their relative
+	    location under a "data" subdirectory in the S3 inbox.
 
 	    $myself upload data
 
@@ -513,7 +518,7 @@ usage_upload () {
 	    some other path under the top-level inbox.  Using e.g. "-t
 	    project/files" with the examples above would have the effect
 	    of displacing the upload to a top-level path "project/files"
-	    directory in the inbox,
+	    directory in the inbox.
 
 	USAGE_UPLOAD
 }
@@ -521,10 +526,11 @@ usage_upload () {
 usage_ingest () {
 	cat <<-USAGE_INGEST
 	The "ingest" sub-command is used for ingesting one or several
-	uploaded files.  The filenames to be ingested may be given with
-	or without the ".c4gh" filename suffix and with or without a
-	full directory path (the suffix will be added to names that lack
-	it, and any directory path will be ignored).
+	uploaded files.  If a directory path is specified with a
+	trailing slash, all files in or beneath that directory will be
+	ingested recursively.  Specifying an empty string ("") as the
+	pathname will have the effect of ingesting all files in the
+	user's inbox.
 
 	Example usage:
 
@@ -538,6 +544,10 @@ usage_ingest () {
 
 	    $myself ingest file1 file2
 	    $myself ingest file3
+
+	    Ingesting all files in or beneath the "project/data" path:
+
+	    $myself ingest project/data/
 
 	USAGE_INGEST
 }
