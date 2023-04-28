@@ -236,6 +236,9 @@ get_messages () {
 	# are individually base64-encoded and outputted on the standard
 	# output stream, one message per line of output.
 	#
+	# Pathnames to files may be given with or without the trailing
+	# ".c4gh" filename suffix.
+	#
 	# If a given pathname ends with a slash, then all messages with
 	# file paths in or below that directory will be returned.  If
 	# the given pathname is an empty string (""), then all messages
@@ -248,7 +251,24 @@ get_messages () {
 
 	for pathname do
 		shift
+
+		# Add the user bucket name to the start of the given
+		# pathname.
+		#
 		pathname=$access_key/$pathname
+
+		# Add ".c4gh" to the end of the pathname if the pathname
+		# doesn't already have it and if it's not a directory
+		# path (ending in "/" or being an empty string).
+		#
+		case $pathname in
+			""|*/)
+				# Do nothing.
+				;;
+			*)
+				pathname=${pathname%.c4gh}.c4gh
+		esac
+
 		set -- "$@" "$pathname"
 	done
 
@@ -526,11 +546,15 @@ usage_upload () {
 usage_ingest () {
 	cat <<-USAGE_INGEST
 	The "ingest" sub-command is used for ingesting one or several
-	uploaded files.  If a directory path is specified with a
-	trailing slash, all files in or beneath that directory will be
-	ingested recursively.  Specifying an empty string ("") as the
-	pathname will have the effect of ingesting all files in the
-	user's inbox.
+	uploaded files.
+
+	Filenames do not have to be given with the trailing ".c4gh"
+	filename suffix.
+
+	If a directory path is specified with a trailing slash, all
+	files in or beneath that directory will be ingested recursively.
+	Specifying an empty string ("") as the pathname will have the
+	effect of ingesting all files in the user's inbox.
 
 	Example usage:
 
@@ -557,6 +581,9 @@ usage_accession () {
 	The "accession" sub-command is used for assigning an accession ID
 	to a single file that has previously been ingested.
 
+	Filenames do not have to be given with the trailing ".c4gh"
+	filename suffix.
+
 	Example usage:
 
 	    Listing the filenames currently in the "verified" queue
@@ -577,9 +604,16 @@ usage_accession () {
 usage_dataset () {
 	cat <<-USAGE_DATASET
 	The "dataset" sub-command is used for associating one or several
-	files to a single dataset ID.  If a directory path is given with
-	a slash at the end, all files in or beneath that directory will
-	be associated to the given dataset ID.
+	files to a single dataset ID.
+
+	Filenames do not have to be given with the trailing ".c4gh"
+	filename suffix.
+
+	If a directory path is given with a slash at the end, all files
+	in or beneath that directory will be associated to the given
+	dataset ID.  Specifying an empty string ("") as the pathname
+	will have the effect of associating all files to the given
+	dataset ID.
 
 	Example usage:
 
