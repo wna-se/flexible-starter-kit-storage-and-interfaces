@@ -89,7 +89,7 @@ services:
         ]
       interval: 5s
       timeout: 20s
-      retries: 3
+      retries: 20
     image: ghcr.io/neicnordic/sda-mq:v1.4.28
     networks:
       - secure
