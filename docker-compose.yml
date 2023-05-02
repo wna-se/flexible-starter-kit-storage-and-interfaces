@@ -43,11 +43,24 @@ services:
       - |
         pip install --upgrade pip
         pip install aiohttp Authlib
-        python -u /oidc.py
+        python -u /oidc.py &
+        echo "$$!" >/tmp/server.pid
+        wait
     container_name: oidc
     depends_on:
       credentials:
         condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "sh",
+          "-c",
+          "kill -0 $$(cat /tmp/server.pid)"
+        ]
+      interval: 5s
+      timeout: 10s
+      retries: 20
     image: python:3.10-slim
     networks:
       - public
@@ -70,7 +83,7 @@ services:
       test:
         [
           "CMD",
-          "bash",
+          "sh",
           "-c",
           "rabbitmq-diagnostics -q check_running && rabbitmq-diagnostics -q check_local_alarms"
         ]
@@ -147,7 +160,7 @@ services:
       credentials:
         condition: service_completed_successfully
       oidc:
-        condition: service_started
+        condition: service_healthy
       postgres:
         condition: service_healthy
       s3:
