@@ -49,7 +49,7 @@ volume=shared
 docker run --detach --rm \
 	--name cert-deploy \
 	--volume "${project}_$volume:/data" \
-	busybox sleep infinity
+	busybox:stable sleep infinity
 
 tar -v -c -f - "$RENEWED_LINEAGE" |
 docker cp - cert-deploy:/data
@@ -57,4 +57,4 @@ docker cp - cert-deploy:/data
 docker stop cert-deploy
 
 docker ps --filter volume="${project}_$volume" --format '{{.ID}}' |
-xargs docker restart
+xargs -r docker restart
