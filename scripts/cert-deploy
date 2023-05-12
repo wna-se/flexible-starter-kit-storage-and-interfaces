@@ -1,0 +1,51 @@
+#!/bin/sh
+
+# This script is designed to be run from certbot using its --deploy-hook
+# mechanism:
+#
+#	certbot ... --deploy-hook cert-deploy
+#
+# When certbot calls the script, it sets the RENEWED_LINEAGE variable.
+# This variable, according to the certbot manual,
+#
+#       [...] will point to the config live subdirectory (for example,
+#       "/etc/letsencrypt/live/example.com") containing the new
+#       certificates and keys
+#
+# That path and all files beneath it will be replicated as-is in
+# the volume configured below.  That means that if the host stores
+# certificates in "/etc/letsencrypt" and a container mounts the
+# shared volume at "/shared", the certificates will be available in
+# "/shared/etc/letsencrypt".
+#
+# Any running container mounting the named volume will then be
+# restarted.
+
+set -e -u
+
+if [ "${RENEWED_LINEAGE:+set}" != set ]; then
+	cat <<-'END_ERROR' >&2
+		The RENEWED_LINEAGE environment variable is unset or empty.  This
+		indicates that the scipt was invoked inproperly.  Ensure that the script
+		is either called from certbot using its --deploy-hook facility, or that
+		you ensure that RENEWED_LINEAGE variable is set to the correct directory
+		path in the script's environment by other means.
+	END_ERROR
+	exit 1
+fi
+
+project=starter-kit-storage-and-interfaces
+volume=shared
+
+docker run --detach --rm \
+	--name cert-deploy \
+	--volume "${project}_$volume:/data" \
+	busybox sleep infinity
+
+tar -v -c -f - "$RENEWED_LINEAGE" |
+docker cp - cert-deploy:/data
+
+docker stop cert-deploy
+
+docker ps --filter volume="${project}_$volume" --format '{{.ID}}' |
+xargs docker restart
