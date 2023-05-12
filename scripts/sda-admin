@@ -4,7 +4,7 @@ set -u -e
 
 myself=$0
 
-# Default values for global options. Values in the environment override
+# Default values for global options.  Values in the environment override
 # these hard-coded defaults, and values set via command line options
 # override these later.
 MQ_CREDENTIALS=${MQ_CREDENTIALS-test:test}	# --mq-credentials user:pass
@@ -18,28 +18,45 @@ SDA_KEY=${SDA_KEY-crypt4gh_key.pub}		# --sda-key pathname
 SDA_CLI=${SDA_CLI-sda-cli}
 
 encrypt () {
-	# Encrypt the given files.
+	# Encrypt the given files using "sda-cli".
 	#
 	# Files are encrypted unconditionally, regardless of whether
 	# there exists encrypted variants of the files or not.  The only
-	# scenario wherein a file is not re-encrypted is when the user
+	# scenario wherein a file is not encrypted is when the user
 	# gives us the pathname of an encrypted file and we can't find
 	# the unencrypted variant of the file by simply removing the
-	# ".c4gh" filename suffix.  If a file is re-encrypted, the old
-	# encrypted file is backed up with an additional ".bak" filename
-	# suffix.  Old backups are unceremoniously overwritten.
-	
+	# ".c4gh" filename suffix.
+	#
+	# Directories and other non-regular files are ignored.
+
 	for pathname do
 		shift
-		pathname=${pathname%.c4gh}
-		if [ ! -f "$pathname" ]; then
+
+		if [ ! -f "$pathname" ] || [ ! -f "${pathname%.c4gh}" ]
+		then
+			# Skip if we are given something that doesn't
+			# exist or isn't a regular file, or if the
+			# variant of the filename with no ".c4gh" suffix
+			# does not exist or isn't a regular file.
 			continue
 		fi
-		if [ -f "$pathname.c4gh" ]; then
-			printf 'Backing up "%s" to "%s" for re-encryption\n' \
-				"$pathname.c4gh" "$pathname.c4gh.bak" >&2
-			mv "$pathname.c4gh" "$pathname.c4gh.bak"
-		fi
+
+		pathname=${pathname%.c4gh}
+
+		# Skip if the unencrypted pathname is already in the
+		# list.
+		for dup do
+			if [ "$pathname" = "$dup" ]; then
+				continue 2
+			fi
+		done
+
+		# Remove the encrypted variant of the file, if it
+		# exists.
+		rm -f "$pathname.c4gh"
+
+		# Remember the unencrypted variant of the file for
+		# encryption later.
 		set -- "$@" "$pathname"
 	done
 
@@ -50,17 +67,88 @@ encrypt () {
 }
 
 upload () {
-	# Encrypt+upload using sda-cli.
+	# Encrypt+upload using "sda-cli".
+	#
+	# Files are uploaded to the top-level directory of the S3
+	# storage bucket, offset by the target directory path given by
+	# the option-argument of the "-t" option.
+	#
+	# Directories are handled recursively and will be uploaded to
+	# the target directory path given by the directory name, offset
+	# by the target path given by the option-argument of the "-t"
+	# option.
 
-	encrypt "$@"
+	OPTIND=1
+	unset -v target_dir
+	while getopts t: opt; do
+		case $opt in
+			t)
+				target_dir=$OPTARG
+				;;
+			*)
+				echo 'Error in command line parsing' >&2
+				exit 1
+		esac
+	done
+	shift "$(( OPTIND - 1 ))"
+
+	# Sanity check the target directory path.
+	case ${target_dir-} in
+		*..*)
+			echo 'Target path contains ".."' >&2
+			exit 1
+			;;
+		/*)
+			echo 'Target path is absolute' >&2
+			exit 1
+	esac
 
 	for pathname do
 		shift
-		pathname=${pathname%.c4gh}.c4gh
+		if [ -d "$pathname" ]; then
+			# Recursively encrypt and upload the directory.
+			# We do this in a subshell to isolate the
+			# changes made to the "target_dir" variable in
+			# the recursive call.
+			(
+				upload -t "${target_dir-.}/$(basename "$pathname")" \
+					"$pathname"/*
+			)
+			continue
+		fi
 		set -- "$@" "$pathname"
 	done
 
-	"$SDA_CLI" upload -config "$SDA_CONFIG" "$@"
+	encrypt "$@"
+
+	# Ensure that our list of files to upload only consists of
+	# encrypted files that exists, and that this list does not
+	# contain duplicate entries.
+	for pathname do
+		shift
+		pathname=${pathname%.c4gh}.c4gh
+
+		if [ ! -f "$pathname" ]; then
+			continue
+		fi
+
+		for dup do
+			if [ "$pathname" = "$dup" ]; then
+				continue 2
+			fi
+		done
+
+		set -- "$@" "$pathname"
+	done
+
+	# If there are files to upload, upload them, possibly in a
+	# subdirectory of the user's S3 bucket.
+	if [ "$#" -gt 0 ]; then
+		"$SDA_CLI" upload \
+			-config "$SDA_CONFIG" \
+			${target_dir+-targetDir "$target_dir"} \
+			"$@"
+	fi
 }
 
 curl () {
@@ -92,14 +180,69 @@ publish () {
 	done >/dev/null
 }
 
+jq_filter=$(cat <<'JQ_FILTER'
+map(
+	# Add an array of pathnames that would match this message.  This
+	# includes the pathname of each parent directory, leading up to
+	# and including the pathname of the file itself.
+	.tmp_paths = [
+		# The file's full pathname is part of a base64-encoded
+		# JSON blob.
+		foreach (
+			.payload |
+			@base64d |
+			fromjson.filepath |
+			split("/")[]
+		) as $elem (
+			null;
+			. += $elem + "/";
+			.
+		)
+	] |
+	# The last element is the full file path and should not have a
+	# trailing slash.
+	.tmp_paths[-1] |= rtrimstr("/")
+) |
+[
+	# Match the pathnames given as positional arguments against the
+	# computed pathnames in the "tmp_paths" array in each message.
+	# Depending on the $yes boolean variable, extract or discard
+	# matching messages.
+	JOIN(
+		INDEX($ARGS.positional[]; .);
+		.[];
+		.tmp_paths[];
+		if (.[1:] | any | if $yes then . else not end) then
+			.[0]
+		else
+			empty
+		end
+	)
+] |
+# Deduplicate the extracted messages on the full pathname of the file,
+# then remove the "tmp_paths" array from each message and base64 encode
+# them.
+unique_by(.tmp_paths[-1]) |
+map( del(.tmp_paths) | @base64 )[]
+JQ_FILTER
+)
+
 get_messages () {
 	# Retrieves the messages on the queue given by the 1st argument.
-	# The remaining arguments are filenames that we filter the
+	# The remaining arguments are pathnames that we filter the
 	# messages with (together with the access key from the S3
 	# configuration).  Any message that does not correspond to any
-	# of the given filenames is requeued.  The remaining messages
+	# of the given pathnames is requeued.  The remaining messages
 	# are individually base64-encoded and outputted on the standard
 	# output stream, one message per line of output.
+	#
+	# Pathnames to files may be given with or without the trailing
+	# ".c4gh" filename suffix.
+	#
+	# If a given pathname ends with a slash, then all messages with
+	# file paths in or below that directory will be returned.  If
+	# the given pathname is an empty string (""), then all messages
+	# are returned.
 
 	queue=$1
 	shift
@@ -108,7 +251,24 @@ get_messages () {
 
 	for pathname do
 		shift
-		pathname=$access_key/$(basename "$pathname" .c4gh).c4gh
+
+		# Add the user bucket name to the start of the given
+		# pathname.
+		#
+		pathname=$access_key/$pathname
+
+		# Add ".c4gh" to the end of the pathname if the pathname
+		# doesn't already have it and if it's not a directory
+		# path (ending in "/" or being an empty string).
+		#
+		case $pathname in
+			""|*/)
+				# Do nothing.
+				;;
+			*)
+				pathname=${pathname%.c4gh}.c4gh
+		esac
+
 		set -- "$@" "$pathname"
 	done
 
@@ -127,21 +287,16 @@ get_messages () {
 	# Note that we only requeue unique messages, based on the file
 	# path stored in each message's payload.
 	#
-	jq -r 'JOIN(INDEX($ARGS.positional | unique[]; .);
-		unique_by(.payload | @base64d | fromjson.filepath)[];
-		.payload | @base64d | fromjson.filepath;
-		if .[1] then empty else .[0] | @base64 end)' \
-		--args "$@" <"$tmpfile" |
+	jq -r --argjson yes false "$jq_filter" --args "$@" <"$tmpfile" |
 	publish
 
 	# Filter out (extract) the the set of messages that we want to
 	# keep.  This set does not contain any duplicated file paths.
 	#
-	jq -r 'JOIN(INDEX($ARGS.positional | unique[]; .);
-		unique_by(.payload | @base64d | fromjson.filepath)[];
-		.payload | @base64d | fromjson.filepath;
-		if .[1] then .[0] | @base64 else empty end)' \
-		--args "$@" <"$tmpfile"
+	jq -r --argjson yes true "$jq_filter" --args "$@" <"$tmpfile"
+
+	rm -f "$tmpfile"
+	trap - EXIT
 }
 
 get_filenames () {
@@ -163,7 +318,8 @@ get_filenames () {
 }
 
 ingest () {
-	# Ingest the given filenames.
+	# Ingest the given filenames.  If given a directory path ending
+	# with a slash, ingest all files in or below that path.
 
 	# If no arguments are given, list the filenames that may be
 	# processed, then return immediately.
@@ -202,9 +358,11 @@ accession () {
 	fi
 
 	# We expect exactly two arguments here; one accession ID and one
-	# filename.
+	# filename.  The filename should not end in a slash.
 	#
-	if [ "$#" -ne 2 ]; then
+	if	[ "$#" -ne 2 ] ||
+		case $2 in (*/) true;; (*) false; esac
+	then
 		usage_accession >&2
 		return 1
 	fi
@@ -215,8 +373,8 @@ accession () {
 	# Get the message that we want from the "verified" queue (there
 	# will be at most one message as they are deduplicated based
 	# on the file path, and we're only querying using a single
-	# filename), then rewrite them into ingest messages and publish
-	# them.
+	# filename), then rewrite them into accession messages and
+	# publish them.
 	#
 	get_messages verified "$@" |
 	jq -r -R --arg accession_id "$accession_id" '
@@ -235,7 +393,9 @@ accession () {
 }
 
 dataset () {
-	# Collect filenames into datasets.
+	# Collect filenames into datasets.  If a directory path is
+	# given with a slash at the end, all files in or beneath that
+	# directory will be assigned to the given dataset ID.
 
 	# If no arguments are given, list the files that may be
 	# processed, then return immediately.
@@ -310,20 +470,25 @@ usage_general () {
 	Specific synopsis:
 	    $myself help
 
-	    $myself [...] upload pathname [pathname...]
+	    $myself [...] upload [-t target-path] pathname [pathname...]
 	    $myself help upload
 
-	    $myself [...] ingest filename [filename...]
+	    $myself [...] ingest pathname [pathname...]
 	    $myself [...] ingest
 	    $myself help ingest
 
-	    $myself [...] accession accessionID filename
+	    $myself [...] accession accessionID pathname
 	    $myself [...] accession
 	    $myself help accession
 
-	    $myself [...] dataset datasetID filename [filename...]
+	    $myself [...] dataset datasetID pathname [pathname...]
 	    $myself [...] dataset
 	    $myself help dataset
+
+	Environment variables:
+	    SDA_CLI     Pathname of the "sda-cli" executable.  If unset,
+	                the utility will be located using your "PATH"
+	                variable, as is done for any ordinary utility.
 
 	USAGE_GENERAL
 }
@@ -331,23 +496,49 @@ usage_general () {
 usage_upload () {
 	cat <<-USAGE_UPLOAD
 	The "upload" sub-command is used for encrypting and uploading
-	one or several files to the configured S3 storage's inbox.
-	Both encryption and uploading is carried out using "sda-cli".
+	one or several files or directories to the configured S3
+	storage's inbox.  Any file or directory given as an operand is
+	uploaded to the top-level of the S3 inbox.  Directories are
+	uploaded recursively and files within them maintain their place
+	in the directory structure rooted at the named directory.
 
-	If a given file is already encrypted (it has a ".c4gh" filename
-	suffix) or if it is unencrypted but has a corresponding
-	encrypted version, it will be re-encrypted.  When re-encrypting
-	a file, the old encrypted file is renamed with an additional
-	".bak" filename suffix.  Old backups are overwritten.
+	The "upload" sub-command takes an optional "-t" option whose
+	option-argument will be used as a target directory path beneath
+	the S3 inbox.  The given target path may not contain the
+	substring ".." nor an initial "/".  See examples further down.
+
+	Files are unconditionally re-encrypted.  Any existing encrypted
+	copy of a file will be overwritten.
+
+	This script uses "sda-cli" for encryption and uploading to the
+	S3 storage.  If the "SDA_CLI" environment variable is set, it
+	is assumed to hold the pathname of the "sda-cli" executable.
+	If the "SDA_CLI" variable is unset, the "sda-cli" executable
+	will be located using the user's "PATH" variable, like any other
+	command.
 
 	Example usage:
 
-	    Files may be uploaded one by one or several at once.
-	    Encrypting and uploading three files (this creates or
-	    re-creates "file1.c4gh", "file2.c4gh", and "file3.c4gh"):
+	    Files may be uploaded one by one or several at once.  The
+	    following two commands encrypts and uploads three files
+	    (this creates or re-creates "file1.c4gh", "file2.c4gh", and
+	    "file3.c4gh").  All three files are placed at the top-level
+	    of the inbox.
 
 	    $myself upload file1 file2
-	    $myself upload file3
+	    $myself upload dir/file3
+
+	    The following command encrypts and uploads all files in the
+	    "data" subdirectory.  The files will retain their relative
+	    location under a "data" subdirectory in the S3 inbox.
+
+	    $myself upload data
+
+	    Using the "-t" option, the target directory can be set to
+	    some other path under the top-level inbox.  Using e.g. "-t
+	    project/files" with the examples above would have the effect
+	    of displacing the upload to a top-level path "project/files"
+	    directory in the inbox.
 
 	USAGE_UPLOAD
 }
@@ -355,10 +546,15 @@ usage_upload () {
 usage_ingest () {
 	cat <<-USAGE_INGEST
 	The "ingest" sub-command is used for ingesting one or several
-	uploaded files.  The filenames to be ingested may be given with
-	or without the ".c4gh" filename suffix and with or without a
-	full directory path (the suffix will be added to names that lack
-	it, and any directory path will be ignored).
+	uploaded files.
+
+	Filenames do not have to be given with the trailing ".c4gh"
+	filename suffix.
+
+	If a directory path is specified with a trailing slash, all
+	files in or beneath that directory will be ingested recursively.
+	Specifying an empty string ("") as the pathname will have the
+	effect of ingesting all files in the user's inbox.
 
 	Example usage:
 
@@ -373,16 +569,20 @@ usage_ingest () {
 	    $myself ingest file1 file2
 	    $myself ingest file3
 
+	    Ingesting all files in or beneath the "project/data" path:
+
+	    $myself ingest project/data/
+
 	USAGE_INGEST
 }
 
 usage_accession () {
 	cat <<-USAGE_ACCESSION
 	The "accession" sub-command is used for assigning an accession ID
-	to a single file that has previously been ingested.  As with the
-	"ingest" sub-command, the filenames may be given with or without
-	the ".c4gh" filename suffix and with or without a full directory
-	path.
+	to a single file that has previously been ingested.
+
+	Filenames do not have to be given with the trailing ".c4gh"
+	filename suffix.
 
 	Example usage:
 
@@ -404,9 +604,16 @@ usage_accession () {
 usage_dataset () {
 	cat <<-USAGE_DATASET
 	The "dataset" sub-command is used for associating one or several
-	files to a single dataset ID.  As with the "ingest" sub-command,
-	the filenames may be given with or without the ".c4gh" filename
-	suffix and with or without a full directory path.
+	files to a single dataset ID.
+
+	Filenames do not have to be given with the trailing ".c4gh"
+	filename suffix.
+
+	If a directory path is given with a slash at the end, all files
+	in or beneath that directory will be associated to the given
+	dataset ID.  Specifying an empty string ("") as the pathname
+	will have the effect of associating all files to the given
+	dataset ID.
 
 	Example usage:
 
@@ -418,8 +625,13 @@ usage_dataset () {
 	    Files are associated to dataset IDs one at a time or several
 	    at once.  Associating three files with a dataset ID:
 
-	    $myself dataset MYSET001 file1 file2
-	    $myself dataset MYSET001 file3
+	    $myself dataset MYSET00A file1 file2
+	    $myself dataset MYSET00A file3
+
+	    Associate all files in or beneath the path
+	    "project/data/set1" to a dataset ID:
+
+	    $myself dataset MYSET001 project/data/set1/
 
 	USAGE_DATASET
 }
