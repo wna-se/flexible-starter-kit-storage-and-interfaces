@@ -34,8 +34,17 @@ if [ "${RENEWED_LINEAGE:+set}" != set ]; then
 	exit 1
 fi
 
+# The shared volume:
 project=starter-kit-storage-and-interfaces
 volume=shared
+
+# Steps:
+# 1. Create temporary container that mounts the volume.
+# 2. Copy the file hierarchy to the temporary container.
+# 3. Stop the temporary container (this also deletes it).
+# 4. Restart all running volumes that are mounting the volume.
+#    Containers that don't restart within 10 seconds are forcibly
+#    stopped and then restarted.  See "docker restart --help".
 
 docker run --detach --rm \
 	--name cert-deploy \
