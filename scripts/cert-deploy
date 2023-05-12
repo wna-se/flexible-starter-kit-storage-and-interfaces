@@ -48,13 +48,18 @@ volume=shared
 
 docker run --detach --rm \
 	--name cert-deploy \
-	--volume "${project}_$volume:/data" \
+	--volume "${project}_$volume:/shared" \
 	busybox:stable sleep infinity
+trap 'docker stop cert-deploy' EXIT
 
-tar -v -c -f - "$RENEWED_LINEAGE" |
-docker cp - cert-deploy:/data
+# We are assuming GNU tar here:
+tar -v -h -c -f - "$RENEWED_LINEAGE" |
+docker cp - cert-deploy:/shared
+
+docker exec cert-deploy chmod -R a+rx "/shared/$RENEWED_LINEAGE"
 
 docker stop cert-deploy
+trap '' EXIT
 
 docker ps --filter volume="${project}_$volume" --format '{{.ID}}' |
 xargs -r docker restart
