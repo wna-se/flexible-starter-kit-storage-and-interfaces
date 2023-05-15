@@ -25,10 +25,10 @@ set -e -u
 
 if [ "${RENEWED_LINEAGE:+set}" != set ]; then
 	cat <<-'END_ERROR' >&2
-		The RENEWED_LINEAGE environment variable is unset or empty.  This
-		indicates that the scipt was invoked inproperly.  Ensure that the script
-		is either called from certbot using its --deploy-hook facility, or that
-		you ensure that RENEWED_LINEAGE variable is set to the correct directory
+		The RENEWED_LINEAGE environment variable is empty or not set at all.
+		This indicates that the script was invoked improperly.  Ensure that the
+		script is either called from certbot using its --deploy-hook facility,
+		or that you set the RENEWED_LINEAGE variable to the correct directory
 		path in the script's environment by other means.
 	END_ERROR
 	exit 1
