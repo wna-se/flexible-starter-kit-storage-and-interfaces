@@ -10,10 +10,10 @@ The storage and interfaces software stack for the GDI-starter-kit consists of th
 |---------------|------|
 | broker        | RabbitMQ based message broker, [SDA-MQ](https://github.com/neicnordic/sda-mq). |
 | database      | PostgreSQL database, [SDA-DB](https://github.com/neicnordic/sda-db). |
-| storage       | S3 object store, demo uses Minio S3 |
-| mock-oidc     | A python implementation of a mock-oidc in place of LS-AAI |
-| s3inbox       | Proxy inbox to the S3 backend store, [SDA-S3Proxy](https://github.com/neicnordic/sda-s3proxy) |
-| download      | Data out solution for downloading files from the SDA, [SDA-download](https://github.com/neicnordic/sda-download) |
+| storage       | S3 object store, demo uses Minio S3. |
+| mock-oidc     | A python implementation of a mock-oidc in place of LS-AAI. |
+| s3inbox       | Proxy inbox to the S3 backend store, [SDA-S3Proxy](https://github.com/neicnordic/sda-s3proxy). |
+| download      | Data out solution for downloading files from the SDA, [SDA-download](https://github.com/neicnordic/sda-download). |
 | SDA-pipeline     | The ingestion pipeline of the SDA, [SDA-pipeline](https://github.com/neicnordic/sda-pipeline). This comprises of the following core components: `ingest`, `verify`, `finalize` and `mapper`.|
 
 Detailed documentation on the `sda-pipeline` can be found at: https://neicnordic.github.io/sda-pipeline/pkg/sda-pipeline/.
@@ -32,11 +32,11 @@ from the root of this repo. Configuration can be customized by changing the [`co
 
 ### Adding TLS to internet facing services
 
-Internet facing services such as e.g. `s3inbox`, `download` and `mock-oidc`, need to be secured via TLS certification. This can be most conveniently achieved by using [letsencrypt](https://letsencrypt.org/getting-started/) as Certificate Authority. Assuming shell access to your web host, a convenient way to set this up is through  installing certbot (or any other ACME client supported by letsencrypt). Detailed instructions on setting up `certbot` for different system configurations can be found [here](https://certbot.eff.org/).
+Internet facing services such as `s3inbox`, `download` and `mock-oidc`, need to be secured via TLS certification. This can be most conveniently achieved by using [Let's Encrypt](https://letsencrypt.org/getting-started/) as Certificate Authority. Assuming shell access to your web host, a convenient way to set this up is through installing Certbot (or any other ACME client supported by Let's Encrypt). Detailed instructions on setting up Certbot for different systems can be found [here](https://certbot.eff.org/).
 
 ## Authentication for users (mock or AAI)
 
-To interact with SDA services, users need to provide jw token authentication. Ultimately, tokens can be fetched by [LS-AAI](https://lifescience-ri.eu/ls-login/) upon user login to an OIDC relaying party (RP) service that is [registered with LS-AAI](https://spreg-legacy.aai.elixir-czech.org/). An example of such an RP service is the [sda-auth](https://github.com/neicnordic/sda-auth) service, which however not included in the present stack.
+To interact with SDA services, users need to provide [JSON Web Token](https://jwt.io/) (JWT) authentication. Ultimately, tokens can be fetched by [LS-AAI](https://lifescience-ri.eu/ls-login/) upon user login to an OIDC relaying party (RP) service that is [registered with LS-AAI](https://spreg-legacy.aai.elixir-czech.org/). An example of such an RP service is the [sda-auth](https://github.com/neicnordic/sda-auth) service, which however not included in the present stack.
 
 For the starter-kit, jw tokens can be issued by the included `mock-oidc` service and used for authentication instead. The `mock-oidc` is a simple Python implementation that mimics the basic OIDC functionality of LS-AAI. It does not require user authentication and serves a valid token through its `/token` endpoint:
 
