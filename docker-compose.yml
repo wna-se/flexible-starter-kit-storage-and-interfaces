@@ -51,13 +51,7 @@ services:
       credentials:
         condition: service_completed_successfully
     healthcheck:
-      test:
-        [
-          "CMD",
-          "sh",
-          "-c",
-          "kill -0 $$(cat /tmp/server.pid)"
-        ]
+      test: [ "CMD", "sh", "-c", "kill -0 $$(cat /tmp/server.pid)" ]
       interval: 5s
       timeout: 10s
       retries: 20
@@ -71,6 +65,35 @@ services:
       - ./servers/oidc.py:/oidc.py
       - shared:/shared
 ###
+
+  auth:
+    container_name: auth
+    profiles:
+      - auth
+    image: ghcr.io/neicnordic/sda-auth:v0.7.3
+    depends_on:
+      credentials:
+        condition: service_completed_successfully
+    environment:
+      - ELIXIR_ID=XC56EL11xx
+      - ELIXIR_PROVIDER=http://aai-mock:8080/oidc/
+      - ELIXIR_SECRET=wHPVQaYXmdDHg
+      - ELIXIR_JWKPATH=jwk
+      - ELIXIR_REDIRECTURL=http://localhost:8085/elixir/login
+      - LOG_LEVEL=info
+      - S3INBOX=localhost:8000
+      - JWTISSUER=http://auth:8085
+      - JWTPRIVATEKEY=shared/keys/jwt.key
+      - JWTSIGNATUREALG=ES256
+      - RESIGNJWT=False
+    volumes:
+      - shared:/shared
+    ports:
+      - 8085:8080
+    networks:
+      - public
+      - my-app-network
+    restart: always
 
   rabbitmq:
     container_name: rabbitmq
@@ -325,3 +348,6 @@ volumes:
 networks:
   public:
   secure:
+  # required for allowing auth to connect to ls-aai-mock
+  my-app-network:
+    name: my-app-network
