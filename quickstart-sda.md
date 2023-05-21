@@ -24,7 +24,7 @@ NeIC Sensitive Data Archive documentation can be found at: https://neic-sda.read
 
 The storage and interfaces stack can be deployed with the use of the provided `docker-compose.yml` file by running
 
-```cmd
+```shell
 docker compose up -d
 ```
 
