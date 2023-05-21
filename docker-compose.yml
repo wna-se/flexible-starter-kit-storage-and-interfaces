@@ -79,12 +79,14 @@ services:
       - ELIXIR_PROVIDER=http://aai-mock:8080/oidc/
       - ELIXIR_SECRET=wHPVQaYXmdDHg
       - ELIXIR_JWKPATH=jwk
-      - ELIXIR_REDIRECTURL=http://localhost:8085/elixir/login
+      - ELIXIR_REDIRECTURL=https://localhost:8085/elixir/login
       - LOG_LEVEL=info
       - S3INBOX=localhost:8000
       - JWTISSUER=http://auth:8085
       - JWTPRIVATEKEY=shared/keys/jwt.key
       - JWTSIGNATUREALG=ES256
+      - SERVER_CERT=shared/cert/server.crt
+      - SERVER_KEY=shared/cert/auth.key
       - RESIGNJWT=False
     volumes:
       - shared:/shared
