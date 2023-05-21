@@ -59,7 +59,7 @@ services:
     networks:
       - public
     ports:
-      - "8080:8080"
+      - "8081:8081"
     restart: always
     volumes:
       - ./servers/oidc.py:/oidc.py
