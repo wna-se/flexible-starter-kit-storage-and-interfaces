@@ -106,7 +106,7 @@ To start using the tool run:
 - Encrypt and upload a whole folder recursively to a specified path, which can be different from the source, in one go:
 
 ```shell
-./sda-cli upload -config s3cmd.conf -r <folder_1_to_upload> -targetDir <upload_folder>
+./sda-cli upload -config s3cmd.conf --encrypt-with-key <sda-c4gh-public-key> -r <folder_1_to_upload> -targetDir <upload_folder>
 ```
 
 - List all uploaded files in the user's bucket recursively:
