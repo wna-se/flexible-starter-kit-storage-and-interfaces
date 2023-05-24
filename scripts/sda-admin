@@ -7,10 +7,14 @@ myself=$0
 # Default values for global options.  Values in the environment override
 # these hard-coded defaults, and values set via command line options
 # override these later.
-MQ_CREDENTIALS=${MQ_CREDENTIALS-test:test}	# --mq-credentials user:pass
-MQ_URL=${MQ_URL-http://localhost:15672}		# --mq-url URL
-SDA_CONFIG=${SDA_CONFIG-s3cmd.conf}		# --sda-config pathname
-SDA_KEY=${SDA_KEY-crypt4gh_key.pub}		# --sda-key pathname
+
+MQ_CREDENTIALS=${MQ_CREDENTIALS-test:test}		# --mq-credentials user:pass
+MQ_URL=${MQ_URL-http://localhost:15672}			# --mq-url URL
+MQ_EXCHANGE_PREFIX=${MQ_EXCHANGE_PREFIX-gdi/sda}	# --mq-exchange-prefix some/string
+MQ_QUEUE_PREFIX=${MQ_QUEUE_PREFIX-gdi}			# --mq-queue-prefix string
+
+SDA_CONFIG=${SDA_CONFIG-s3cmd.conf}			# --sda-config pathname
+SDA_KEY=${SDA_KEY-crypt4gh_key.pub}			# --sda-key pathname
 
 # Allow a user to use the environment variable "SDA_CLI" to point
 # directly to the "sda-cli" executable.  If this environment variable is
@@ -501,6 +505,8 @@ usage_general () {
 	Global options:
 	    --mq-credentials user:pass	MQ credentials			Currently: $MQ_CREDENTIALS
 	    --mq-url URL		MQ URL				Currently: $MQ_URL
+	    --mq-exchange-prefix	Prefix for MQ exchanges		Currently: $MQ_EXCHANGE_PREFIX
+	    --mq-queue-prefix		Prefix for MQ queues		Currently: $MQ_QUEUE_PREFIX
 	    --sda-config pathname	SDA S3 configuration file	Currently: $SDA_CONFIG
 	    --sda-key pathname		SDA CRYPT4GH public key file	Currently: $SDA_KEY
 
@@ -528,7 +534,9 @@ usage_general () {
 	                the utility will be located using your "PATH"
 	                variable, as is done for any ordinary utility.
 
-	    MQ_CREDENTIALS, MQ_URL, SDA_CONFIG, SDA_KEY
+	    MQ_CREDENTIALS, MQ_URL,
+	    MQ_EXCHANGE_PREFIX, MQ_QUEUE_PREFIX,
+	    SDA_CONFIG, SDA_KEY
 	                These variables corresponds to the similarly
 	                named global options.  The command line options
 	                will override the environment variables.
@@ -626,11 +634,11 @@ usage_accession () {
 	or for assigning a sequence of accession IDs to several ingested
 	files.
 
-        When assigning a sequence of IDs to multiple files, the
-        accession IDs are assigned given a printf format string (which
-        must accept a single integer) and an initial value for an
-        integer counter.  The accession IDs will be assigned to the
-        mentioned files in ascending integer sequence.
+	When assigning a sequence of IDs to multiple files, the
+	accession IDs are assigned given a printf format string (which
+	must accept a single integer) and an initial value for an
+	integer counter.  The accession IDs will be assigned to the
+	mentioned files in ascending integer sequence.
 
 	Filenames do not have to be given with the trailing ".c4gh"
 	filename suffix.
@@ -709,11 +717,21 @@ while true; do
 		--mq-url)
 			MQ_URL=$2
 			;;
+		--mq-exchange-prefix)
+			MQ_EXCHANGE_PREFIX=$2
+			;;
+		--mq-queue-prefix)
+			MQ_QUEUE_PREFIX=$2
+			;;
 		--sda-config)
 			SDA_CONFIG=$2
 			;;
 		--sda-key)
 			SDA_KEY=$2
+			;;
+		-*)
+			usage >&2
+			exit 1
 			;;
 		*)
 			break
@@ -722,8 +740,8 @@ while true; do
 done
 
 url_api=$MQ_URL/api
-url_exchanges=$url_api/exchanges/gdi/sda
-url_queues=$url_api/queues/gdi
+url_exchanges=$url_api/exchanges/$MQ_EXCHANGE_PREFIX
+url_queues=$url_api/queues/$MQ_QUEUE_PREFIX
 
 # Handle sub-commands.
 case ${1-} in
