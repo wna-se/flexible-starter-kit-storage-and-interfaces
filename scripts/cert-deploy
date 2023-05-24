@@ -59,7 +59,7 @@ docker cp - cert-deploy:/shared
 docker exec cert-deploy chmod -R a+rx "/shared/$RENEWED_LINEAGE"
 
 docker stop cert-deploy
-trap '' EXIT
+trap - EXIT
 
 docker ps --filter volume="${project}_$volume" --format '{{.ID}}' |
 xargs -r docker restart
