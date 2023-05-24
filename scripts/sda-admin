@@ -528,6 +528,11 @@ usage_general () {
 	                the utility will be located using your "PATH"
 	                variable, as is done for any ordinary utility.
 
+	    MQ_CREDENTIALS, MQ_URL, SDA_CONFIG, SDA_KEY
+	                These variables corresponds to the similarly
+	                named global options.  The command line options
+	                will override the environment variables.
+
 	USAGE_GENERAL
 }
 
