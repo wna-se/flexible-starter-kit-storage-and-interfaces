@@ -666,7 +666,7 @@ usage_accession () {
 	    in which accession IDs are assigned will depend on the
 	    ordering of the files in the RabbitMQ queue.
 
-	    $myself accession 'PROJ%08' 123 project/data/
+	    $myself accession 'PROJ%08d' 123 project/data/
 
 	USAGE_ACCESSION
 }
