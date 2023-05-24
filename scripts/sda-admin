@@ -158,7 +158,9 @@ upload () {
 curl () {
 	# Helper function that makes curl calls a bit shorter.
 
-	command curl --silent \
+	command curl \
+		--silent \
+		--show-error \
 		--request POST \
 		--user "$MQ_CREDENTIALS" \
 		--header "Content-Type: application/json" \
