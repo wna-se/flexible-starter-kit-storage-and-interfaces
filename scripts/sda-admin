@@ -361,21 +361,34 @@ accession () {
 	# We expect either exactly two arguments here (one accession
 	# ID and one filename), or three or more arguments (one
 	# format string, an inital counter value, and one or several
-	# pathnames).  If two arguments are given, the filename argument
-	# should not end in a slash.
+	# pathnames).
 	#
 	err=false
 	if [ "$#" -eq 2 ]; then
-		if case $2 in (*/) true;; (*) false; esac; then
-			err=true
-		else
-			accession_id=$1
-			shift
-		fi
+		accession_id=$1
+		shift
+
+		# The filename must not end in "/".
+		case $1 in
+			*/)
+				err=true
+		esac
 	elif [ "$#" -ge 3 ]; then
 		accession_format=$1
 		counter=$2
 		shift 2
+
+		# The format string must contain exactly one "%".
+		case $accession_format in
+			*%*%*)
+				err=true
+				;;
+			*%*)
+				# Do nothing.
+				;;
+			*)
+				err=true
+		esac
 	else
 		err=true
 	fi
