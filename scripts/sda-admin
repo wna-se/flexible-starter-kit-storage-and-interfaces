@@ -408,6 +408,7 @@ accession () {
 		# with "$counter" to calculate the new accession ID.
 		# Otherwise just use "$accession_id" directly.
 		if [ "${accession_format+set}" = set ]; then
+			# shellcheck disable=SC2059
 			accession_id=$( printf "$accession_format" "$counter" )
 			counter=$(( counter + 1 ))
 		fi
