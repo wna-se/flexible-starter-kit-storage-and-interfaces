@@ -398,7 +398,7 @@ accession () {
 	fi
 
 	if "$err"; then
-		usage_accession >&2
+		usage accession >&2
 		return 1
 	fi
 
@@ -450,7 +450,7 @@ dataset () {
 	# least one filename.
 	#
 	if [ "$#" -lt 2 ]; then
-		usage_dataset >&2
+		usage dataset >&2
 		return 1
 	fi
 
@@ -751,7 +751,7 @@ case ${1-} in
 		;;
 	help)
 		shift
-		usage "$@"
+		usage "$@" | "${PAGER:-less}"
 		;;
 	*)
 		usage >&2
