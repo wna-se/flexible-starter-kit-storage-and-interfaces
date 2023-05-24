@@ -638,6 +638,11 @@ usage_accession () {
 	integer counter.  The accession IDs will be assigned to the
 	mentioned files in ascending integer sequence.
 
+	NOTE:   This script does not care about the format of the
+	NOTE:   accession IDs or whether the assigned accession IDs
+	NOTE:   are unique etc.  It is up to the user to ensure that
+	NOTE:   the correct accession IDs are assigned.
+
 	Filenames do not have to be given with the trailing ".c4gh"
 	filename suffix.
 
