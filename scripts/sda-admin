@@ -19,7 +19,7 @@ SDA_KEY=${SDA_KEY-crypt4gh_key.pub}			# --sda-key pathname
 # Allow a user to use the environment variable "SDA_CLI" to point
 # directly to the "sda-cli" executable.  If this environment variable is
 # not set, the tool will be picked up from "$PATH" as usual.
-SDA_CLI=${SDA_CLI-sda-cli}
+SDA_CLI=${SDA_CLI-sda-cli}	# --sda-cli pathname
 
 encrypt () {
 	# Encrypt the given files using "sda-cli".
@@ -507,6 +507,7 @@ usage_general () {
 	    --mq-url URL		MQ URL				Currently: $MQ_URL
 	    --mq-exchange-prefix	Prefix for MQ exchanges		Currently: $MQ_EXCHANGE_PREFIX
 	    --mq-queue-prefix		Prefix for MQ queues		Currently: $MQ_QUEUE_PREFIX
+	    --sda-cli pathname		Path for "sda-cli" executable	Currently: $SDA_CLI
 	    --sda-config pathname	SDA S3 configuration file	Currently: $SDA_CONFIG
 	    --sda-key pathname		SDA CRYPT4GH public key file	Currently: $SDA_KEY
 
@@ -530,16 +531,13 @@ usage_general () {
 	    $myself help dataset
 
 	Environment variables:
-	    SDA_CLI     Pathname of the "sda-cli" executable.  If unset,
-	                the utility will be located using your "PATH"
-	                variable, as is done for any ordinary utility.
 
-	    MQ_CREDENTIALS, MQ_URL,
-	    MQ_EXCHANGE_PREFIX, MQ_QUEUE_PREFIX,
-	    SDA_CONFIG, SDA_KEY
-	                These variables corresponds to the similarly
-	                named global options.  The command line options
-	                will override the environment variables.
+	    MQ_CREDENTIALS, MQ_URL, MQ_EXCHANGE_PREFIX, MQ_QUEUE_PREFIX,
+	    SDA_CLI, SDA_CONFIG, SDA_KEY
+
+	        These variables corresponds to the similarly named
+	        global options.  The command line options will override
+	        the environment variables.
 
 	USAGE_GENERAL
 }
@@ -722,6 +720,9 @@ while true; do
 			;;
 		--mq-queue-prefix)
 			MQ_QUEUE_PREFIX=$2
+			;;
+		--sda-cli)
+			SDA_CLI=$2
 			;;
 		--sda-config)
 			SDA_CONFIG=$2
