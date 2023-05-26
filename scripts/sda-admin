@@ -7,15 +7,22 @@ myself=$0
 # Default values for global options.  Values in the environment override
 # these hard-coded defaults, and values set via command line options
 # override these later.
-MQ_CREDENTIALS=${MQ_CREDENTIALS-test:test}	# --mq-credentials user:pass
-MQ_URL=${MQ_URL-http://localhost:15672}		# --mq-url URL
-SDA_CONFIG=${SDA_CONFIG-s3cmd.conf}		# --sda-config pathname
-SDA_KEY=${SDA_KEY-crypt4gh_key.pub}		# --sda-key pathname
+
+MQ_CREDENTIALS=${MQ_CREDENTIALS-test:test}		# --mq-credentials user:pass
+MQ_URL=${MQ_URL-http://localhost:15672}			# --mq-url URL
+MQ_EXCHANGE_PREFIX=${MQ_EXCHANGE_PREFIX-gdi/sda}	# --mq-exchange-prefix some/string
+MQ_QUEUE_PREFIX=${MQ_QUEUE_PREFIX-gdi}			# --mq-queue-prefix string
+
+SDA_CONFIG=${SDA_CONFIG-s3cmd.conf}			# --sda-config pathname
+SDA_KEY=${SDA_KEY-crypt4gh_key.pub}			# --sda-key pathname
 
 # Allow a user to use the environment variable "SDA_CLI" to point
 # directly to the "sda-cli" executable.  If this environment variable is
 # not set, the tool will be picked up from "$PATH" as usual.
-SDA_CLI=${SDA_CLI-sda-cli}
+SDA_CLI=${SDA_CLI-sda-cli}	# --sda-cli pathname
+
+# There is also S3_ACCESS_KEY (--s3-access-key), but since its value
+# depend on the final value of "$SDA_CONFIG", we can't set it here.
 
 encrypt () {
 	# Encrypt the given files using "sda-cli".
@@ -154,19 +161,14 @@ upload () {
 curl () {
 	# Helper function that makes curl calls a bit shorter.
 
-	command curl --silent \
+	command curl \
+		--silent \
+		--show-error \
 		--request POST \
 		--user "$MQ_CREDENTIALS" \
 		--header "Content-Type: application/json" \
-		"$@"
-}
-
-access_key () {
-	# Parses the S3 configuration file and outputs the access key.
-
-	sed	-e '/^access_key[[:blank:]]*=[[:blank:]]*/!d' \
-		-e 's///' -e 's/[[:blank:]]*$//' -e 'q' \
-		"$SDA_CONFIG"
+		"$@" |
+	jq 'if type == "object" and has("error") then halt_error(1) else . end'
 }
 
 publish () {
@@ -247,15 +249,13 @@ get_messages () {
 	queue=$1
 	shift
 
-	access_key=$(access_key)
-
 	for pathname do
 		shift
 
 		# Add the user bucket name to the start of the given
 		# pathname.
 		#
-		pathname=$access_key/$pathname
+		pathname=$S3_ACCESS_KEY/$pathname
 
 		# Add ".c4gh" to the end of the pathname if the pathname
 		# doesn't already have it and if it's not a directory
@@ -306,12 +306,10 @@ get_filenames () {
 
 	queue=$1
 
-	access_key=$(access_key)
-
 	curl --data \
 		'{"count":-1,"encoding":"base64","ackmode":"ack_requeue_true"}' \
 		"$url_queues/$queue/get" |
-	jq -r --arg access_key "$access_key" '
+	jq -r --arg access_key "$S3_ACCESS_KEY" '
 		map(.payload | @base64d | fromjson |
 		select(.filepath | startswith($access_key + "/")).filepath |
 			sub(".*?/"; "")) | unique[]'
@@ -347,7 +345,8 @@ ingest () {
 }
 
 accession () {
-	# Assign accession IDs to ingested files.
+	# Assign an accession ID to a single ingested file, or assign
+	# multiple accession IDs to several files.
 
 	# If no arguments are given, list the filenames that may be
 	# processed, then return immediately.
@@ -357,39 +356,76 @@ accession () {
 		return
 	fi
 
-	# We expect exactly two arguments here; one accession ID and one
-	# filename.  The filename should not end in a slash.
+	# We expect either exactly two arguments here (one accession
+	# ID and one filename), or three or more arguments (one
+	# format string, an inital counter value, and one or several
+	# pathnames).
 	#
-	if	[ "$#" -ne 2 ] ||
-		case $2 in (*/) true;; (*) false; esac
-	then
-		usage_accession >&2
+	err=false
+	if [ "$#" -eq 2 ]; then
+		accession_id=$1
+		shift
+
+		# The filename must not end in "/".
+		case $1 in
+			*/)
+				err=true
+		esac
+	elif [ "$#" -ge 3 ]; then
+		accession_format=$1
+		counter=$2
+		shift 2
+
+		# The format string must contain exactly one "%".
+		case $accession_format in
+			*%*%*)
+				err=true
+				;;
+			*%*)
+				# Do nothing.
+				;;
+			*)
+				err=true
+		esac
+	else
+		err=true
+	fi
+
+	if "$err"; then
+		usage accession >&2
 		return 1
 	fi
 
-	accession_id=$1
-	shift
-
-	# Get the message that we want from the "verified" queue (there
-	# will be at most one message as they are deduplicated based
-	# on the file path, and we're only querying using a single
-	# filename), then rewrite them into accession messages and
-	# publish them.
+	# Get the messages that we want from the "verified" queue,
+	# figure out a new accession ID (if we're asked to do so),
+	# rewrite them into accession messages, and publish them.
 	#
 	get_messages verified "$@" |
-	jq -r -R --arg accession_id "$accession_id" '
-		@base64d | fromjson |
-		.payload |= (
+	while IFS= read -r message; do
+		# If "$accession_format" is set, then we should use that
+		# with "$counter" to calculate the new accession ID.
+		# Otherwise just use "$accession_id" directly.
+		if [ "${accession_format+set}" = set ]; then
+			# shellcheck disable=SC2059
+			accession_id=$( printf "$accession_format" "$counter" )
+			printf 'Accession ID #%d: %s\n' "$counter" "$accession_id" >&2
+			counter=$(( counter + 1 ))
+		fi
+
+		printf '%s\n' "$message" |
+		jq -r -R --arg accession_id "$accession_id" '
 			@base64d | fromjson |
-			.type = "accession" |
-			.accession_id = $accession_id |
-			del(.filesize,.operation) |
-			@base64
-		) |
-		.routing_key = "accessionIDs" |
-		del(.payload_bytes) |
-		@base64' |
-	publish
+			.payload |= (
+				@base64d | fromjson |
+				.type = "accession" |
+				.accession_id = $accession_id |
+				del(.filesize,.operation) |
+				@base64
+			) |
+			.routing_key = "accessionIDs" |
+			del(.payload_bytes) |
+			@base64'
+	done | publish
 }
 
 dataset () {
@@ -409,7 +445,7 @@ dataset () {
 	# least one filename.
 	#
 	if [ "$#" -lt 2 ]; then
-		usage_dataset >&2
+		usage dataset >&2
 		return 1
 	fi
 
@@ -464,8 +500,12 @@ usage_general () {
 	Global options:
 	    --mq-credentials user:pass	MQ credentials			Currently: $MQ_CREDENTIALS
 	    --mq-url URL		MQ URL				Currently: $MQ_URL
+	    --mq-exchange-prefix	Prefix for MQ exchanges		Currently: $MQ_EXCHANGE_PREFIX
+	    --mq-queue-prefix		Prefix for MQ queues		Currently: $MQ_QUEUE_PREFIX
+	    --sda-cli pathname		Path for "sda-cli" executable	Currently: $SDA_CLI
 	    --sda-config pathname	SDA S3 configuration file	Currently: $SDA_CONFIG
 	    --sda-key pathname		SDA CRYPT4GH public key file	Currently: $SDA_KEY
+	    --s3-access-key		Override S3 access key		Currently: ${S3_ACCESS_KEY-<unset>}
 
 	Specific synopsis:
 	    $myself help
@@ -478,6 +518,7 @@ usage_general () {
 	    $myself help ingest
 
 	    $myself [...] accession accessionID pathname
+	    $myself [...] accession format start pathname [pathname...]
 	    $myself [...] accession
 	    $myself help accession
 
@@ -486,9 +527,13 @@ usage_general () {
 	    $myself help dataset
 
 	Environment variables:
-	    SDA_CLI     Pathname of the "sda-cli" executable.  If unset,
-	                the utility will be located using your "PATH"
-	                variable, as is done for any ordinary utility.
+
+	    MQ_CREDENTIALS, MQ_URL, MQ_EXCHANGE_PREFIX, MQ_QUEUE_PREFIX,
+	    SDA_CLI, SDA_CONFIG, SDA_KEY
+
+	        These variables corresponds to the similarly named
+	        global options.  The command line options will override
+	        the environment variables.
 
 	USAGE_GENERAL
 }
@@ -578,8 +623,21 @@ usage_ingest () {
 
 usage_accession () {
 	cat <<-USAGE_ACCESSION
-	The "accession" sub-command is used for assigning an accession ID
-	to a single file that has previously been ingested.
+	The "accession" sub-command is used for assigning a specific
+	accession ID to a single file that has previously been ingested,
+	or for assigning a sequence of accession IDs to several ingested
+	files.
+
+	When assigning a sequence of IDs to multiple files, the
+	accession IDs are assigned given a printf format string (which
+	must accept a single integer) and an initial value for an
+	integer counter.  The accession IDs will be assigned to the
+	mentioned files in ascending integer sequence.
+
+	NOTE:   This script does not care about the format of the
+	NOTE:   accession IDs or whether the assigned accession IDs
+	NOTE:   are unique etc.  It is up to the user to ensure that
+	NOTE:   the correct accession IDs are assigned.
 
 	Filenames do not have to be given with the trailing ".c4gh"
 	filename suffix.
@@ -597,6 +655,19 @@ usage_accession () {
 	    $myself accession MYID001 file1
 	    $myself accession MYID002 file2
 	    $myself accession MYID003 file3
+
+	    Assigning accessions to three files, giving them the IDs
+	    "MYID001", "MYID002", and "MYID003":
+
+	    $myself accession 'MYID%03d' 1 file1 file2 file3
+
+	    Assigning accession IDs to all files in or beneath the path
+	    "project/data", starting at 123.  The first two accession
+	    IDs will be "PROJ00000123" and "PROJ00000124".  The ordering
+	    in which accession IDs are assigned will depend on the
+	    ordering of the files in the RabbitMQ queue.
+
+	    $myself accession 'PROJ%08d' 123 project/data/
 
 	USAGE_ACCESSION
 }
@@ -645,11 +716,27 @@ while true; do
 		--mq-url)
 			MQ_URL=$2
 			;;
+		--mq-exchange-prefix)
+			MQ_EXCHANGE_PREFIX=$2
+			;;
+		--mq-queue-prefix)
+			MQ_QUEUE_PREFIX=$2
+			;;
+		--sda-cli)
+			SDA_CLI=$2
+			;;
 		--sda-config)
 			SDA_CONFIG=$2
 			;;
 		--sda-key)
 			SDA_KEY=$2
+			;;
+		--s3-access-key)
+			S3_ACCESS_KEY=$2
+			;;
+		-*)
+			usage >&2
+			exit 1
 			;;
 		*)
 			break
@@ -658,17 +745,29 @@ while true; do
 done
 
 url_api=$MQ_URL/api
-url_exchanges=$url_api/exchanges/gdi/sda
-url_queues=$url_api/queues/gdi
+url_exchanges=$url_api/exchanges/$MQ_EXCHANGE_PREFIX
+url_queues=$url_api/queues/$MQ_QUEUE_PREFIX
+
+# Handle S3_ACCESS_KEY.
+if [ "${S3_ACCESS_KEY+set}" != set ] && [ -f "$SDA_CONFIG" ]; then
+	S3_ACCESS_KEY=$(
+		sed	-e '/^access_key[[:blank:]]*=[[:blank:]]*/!d' \
+			-e 's///' -e 's/[[:blank:]]*$//' -e 'q' \
+			"$SDA_CONFIG"
+	)
+fi
 
 # Handle sub-commands.
 case ${1-} in
 	upload|ingest|accession|dataset)
+		# Ensure that S3_ACCESS_KEY is actually set before
+		# trying to use it, or bail out here.
+		: ${S3_ACCESS_KEY?Missing S3 access key}
 		"$@"
 		;;
 	help)
 		shift
-		usage "$@"
+		usage "$@" | "${PAGER:-less}"
 		;;
 	*)
 		usage >&2
