@@ -21,6 +21,9 @@ SDA_KEY=${SDA_KEY-crypt4gh_key.pub}			# --sda-key pathname
 # not set, the tool will be picked up from "$PATH" as usual.
 SDA_CLI=${SDA_CLI-sda-cli}	# --sda-cli pathname
 
+# There is also S3_ACCESS_KEY (--s3-access-key), but since its value
+# depend on the final value of "$SDA_CONFIG", we can't set it here.
+
 encrypt () {
 	# Encrypt the given files using "sda-cli".
 	#
@@ -168,14 +171,6 @@ curl () {
 	jq 'if type == "object" and has("error") then halt_error(1) else . end'
 }
 
-access_key () {
-	# Parses the S3 configuration file and outputs the access key.
-
-	sed	-e '/^access_key[[:blank:]]*=[[:blank:]]*/!d' \
-		-e 's///' -e 's/[[:blank:]]*$//' -e 'q' \
-		"$SDA_CONFIG"
-}
-
 publish () {
 	# Will read base64-encoded messages from standard input, one
 	# per line, decode each message and publish it.  Any output is
@@ -254,15 +249,13 @@ get_messages () {
 	queue=$1
 	shift
 
-	access_key=$(access_key)
-
 	for pathname do
 		shift
 
 		# Add the user bucket name to the start of the given
 		# pathname.
 		#
-		pathname=$access_key/$pathname
+		pathname=$S3_ACCESS_KEY/$pathname
 
 		# Add ".c4gh" to the end of the pathname if the pathname
 		# doesn't already have it and if it's not a directory
@@ -313,12 +306,10 @@ get_filenames () {
 
 	queue=$1
 
-	access_key=$(access_key)
-
 	curl --data \
 		'{"count":-1,"encoding":"base64","ackmode":"ack_requeue_true"}' \
 		"$url_queues/$queue/get" |
-	jq -r --arg access_key "$access_key" '
+	jq -r --arg access_key "$S3_ACCESS_KEY" '
 		map(.payload | @base64d | fromjson |
 		select(.filepath | startswith($access_key + "/")).filepath |
 			sub(".*?/"; "")) | unique[]'
@@ -514,6 +505,7 @@ usage_general () {
 	    --sda-cli pathname		Path for "sda-cli" executable	Currently: $SDA_CLI
 	    --sda-config pathname	SDA S3 configuration file	Currently: $SDA_CONFIG
 	    --sda-key pathname		SDA CRYPT4GH public key file	Currently: $SDA_KEY
+	    --s3-access-key		Override S3 access key		Currently: $S3_ACCESS_KEY
 
 	Specific synopsis:
 	    $myself help
@@ -739,6 +731,9 @@ while true; do
 		--sda-key)
 			SDA_KEY=$2
 			;;
+		--s3-access-key)
+			S3_ACCESS_KEY=$2
+			;;
 		-*)
 			usage >&2
 			exit 1
@@ -752,6 +747,15 @@ done
 url_api=$MQ_URL/api
 url_exchanges=$url_api/exchanges/$MQ_EXCHANGE_PREFIX
 url_queues=$url_api/queues/$MQ_QUEUE_PREFIX
+
+# Handle S3_ACCESS_KEY.
+if [ "${S3_ACCESS_KEY+set}" != set ]; then
+	S3_ACCESS_KEY=$(
+		sed	-e '/^access_key[[:blank:]]*=[[:blank:]]*/!d' \
+			-e 's///' -e 's/[[:blank:]]*$//' -e 'q' \
+			"$SDA_CONFIG"
+	)
+fi
 
 # Handle sub-commands.
 case ${1-} in
