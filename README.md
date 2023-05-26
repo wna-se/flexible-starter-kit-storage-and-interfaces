@@ -21,7 +21,7 @@ The files imported by the data loading script come from here: `https://github.co
 There are 3 tokens available, the first has access to a dataset at this site, the second one is empty and the third doesn't have access to this site.
 
 ```cmd
-token=$(curl -s -k https://localhost:8081/tokens | jq -r '.[0]')
+token=$(curl -s -k https://localhost:8080/tokens | jq -r '.[0]')
 ```
 
 ### List datasets

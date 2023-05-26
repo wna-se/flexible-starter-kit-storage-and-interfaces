@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 HTTP_PROTOCOL = "http"
-OIDC_PORT = 8081
+OIDC_PORT = 8080
 
 def _set_ssl() -> Union[ssl.SSLContext, None]:
     global HTTP_PROTOCOL
