@@ -11,7 +11,7 @@ The storage and interfaces software stack for the GDI-starter-kit consists of th
 | broker        | RabbitMQ based message broker, [SDA-MQ](https://github.com/neicnordic/sda-mq). |
 | database      | PostgreSQL database, [SDA-DB](https://github.com/neicnordic/sda-db). |
 | storage       | S3 object store, demo uses Minio S3. |
-| mock-oidc     | A python implementation of a mock-oidc in place of LS-AAI. |
+| auth     | OpenID Connect relaying party and authentication service, [SDA-auth](https://github.com/neicnordic/sda-auth). |
 | s3inbox       | Proxy inbox to the S3 backend store, [SDA-S3Proxy](https://github.com/neicnordic/sda-s3proxy). |
 | download      | Data out solution for downloading files from the SDA, [SDA-download](https://github.com/neicnordic/sda-download). |
 | SDA-pipeline     | The ingestion pipeline of the SDA, [SDA-pipeline](https://github.com/neicnordic/sda-pipeline). This comprises of the following core components: `ingest`, `verify`, `finalize` and `mapper`.|
@@ -28,39 +28,41 @@ The storage and interfaces stack can be deployed with the use of the provided `d
 docker compose up -d
 ```
 
-from the root of this repo. Configuration can be customized by changing the [`config/config.yml`](./config/config.yml) file.
+from the root of this repo. Please note that in the current form of the compose file, services are configured to work out-of-the-box with the [LS-AAI-mock](https://github.com/GenomicDataInfrastructure/starter-kit-lsaai-mock) service and some configuration of the latter is needed beforehand, see [here](./README.md##Starting-the-full-stack-with-LS-AAI-mock) for step-by-step instructions. The rationale behind this setup is to allow for a seamless transition to an environment with a *live* LS-AAI service as discussed briefly below.
+
+Configuration can be further customized by changing the [`config/config.yml`](./config/config.yml) file along with the `docker-compose.yml` itself. Please bear in mind that environment variables take precedence over the `config.yml` file.
+
+Lastly, this repo includes a `docker-compose.demo.yml` file which deploys a standalone stack along with a demo of the sda services' functionality with test data. Details can be found [here](./README.md##Starting-the-stack-in-standalone-demo-mode).
 
 ### Adding TLS to internet facing services
 
-Internet facing services such as `s3inbox`, `download` and `mock-oidc`, need to be secured via TLS certification. This can be most conveniently achieved by using [Let's Encrypt](https://letsencrypt.org/getting-started/) as Certificate Authority. Assuming shell access to your web host, a convenient way to set this up is through installing Certbot (or any other ACME client supported by Let's Encrypt). Detailed instructions on setting up Certbot for different systems can be found [here](https://certbot.eff.org/).
+Internet facing services such as `s3inbox`, `download` and `auth`, need to be secured via TLS certification. This can be most conveniently achieved by using [Let's Encrypt](https://letsencrypt.org/getting-started/) as Certificate Authority. Assuming shell access to your web host, a convenient way to set this up is through installing Certbot (or any other ACME client supported by Let's Encrypt). Detailed instructions on setting up Certbot for different systems can be found [here](https://certbot.eff.org/).
 
-## Authentication for users (mock or AAI)
+## Authentication for users with LS-AAI (mock or alive)
 
-To interact with SDA services, users need to provide [JSON Web Token](https://jwt.io/) (JWT) authentication. Ultimately, tokens can be fetched by [LS-AAI](https://lifescience-ri.eu/ls-login/) upon user login to an OIDC relaying party (RP) service that is [registered with LS-AAI](https://spreg-legacy.aai.elixir-czech.org/). An example of such an RP service is the [sda-auth](https://github.com/neicnordic/sda-auth) service, which however not included in the present stack.
+To interact with SDA services, users need to provide [JSON Web Token](https://jwt.io/) (JWT) authorization. Ultimately, tokens can be fetched by [LS-AAI](https://lifescience-ri.eu/ls-login/) upon user login to an OpenID Connect (OIDC) relaying party (RP) service that is [registered with LS-AAI](https://spreg-legacy.aai.elixir-czech.org/). An example of such an RP service is the [sda-auth](https://github.com/neicnordic/sda-auth), which is included in the present stack.
 
-For the starter-kit, jw tokens can be issued by the included `mock-oidc` service and used for authentication instead. The `mock-oidc` is a simple Python implementation that mimics the basic OIDC functionality of LS-AAI. It does not require user authentication and serves a valid token through its `/token` endpoint:
+### sda-auth
 
-```shell
-token=$(curl -s -k https://<mock-oidc_domain_name>/tokens | jq -r '.[0]')
-```
+Assuming users with a valid LS-AAI ID, they can obtain a JWT by logging in to the `sda-auth` service. This can be done by navigating to the `sda-auth` service URL (e.g. https://localhost:8085 for a local deployment or https://login.gdi.nbis.se for a live one) and clicking on the `Login` button. This will redirect the user to the LS-AAI login page where they can enter their credentials. Once authenticated, the user will be redirected back to the `sda-auth` service and a JWT will be issued. This is an access token which can be copied from the `sda-auth`'s page and used to interact with the SDA services like e.g. for authorizing calls to `sda-download`'s API as described in the [Downloading data](#downloading-data) section below.
 
-This token is created upon deployment. See `scripts/make_credentials.sh` for more details. Note that the API returns a list of tokens where the first element is the token of interest, and the rest are legacy tokens for [testing  `sda-download`](https://github.com/neicnordic/sda-download/blob/main/dev_utils/README.md#get-a-token).
+From `sda-auth`'s page users can also download a configuration file for accessing the `s3inbox` service. This `s3cmd.conf` file containes the aforementioned access token along with other necessary information and it is described in detail in the [Uploading data](#uploading-data) section below.
 
 ## How to perform common user tasks
 
 ### Data encryption
 
-The `sda-pipeline` only ingests files encrypted with the archive's `c4gh` public key. For instance, using the go implementation of the [`crypt4gh` utility](https://github.com/neicnordic/crypt4gh) a file can be encrypted simply by running:
+The `sda-pipeline` only ingests files encrypted with the archive's `c4gh` public key. For instance, using the Go implementation of the [`crypt4gh` utility](https://github.com/neicnordic/crypt4gh) a file can be encrypted simply by running:
 
 ```shell
 crypt4gh encrypt -f <file-to-encrypt> -p <sda-c4gh-public-key>
 ```
 
+where `<sda-c4gh-public-key>` is the archive's public key.
 
 ### Uploading data
 
 Users can upload data to the SDA by transferring them directly to the archive's `s3inbox` with an S3 client tool such as [`s3cmd`](https://s3tools.org/s3cmd):
-```
 
 ```shell
 s3cmd -c s3cmd.conf put <path-to-file.c4gh> s3://<username>/<target-path-to-file.c4gh>
@@ -69,8 +71,8 @@ s3cmd -c s3cmd.conf put <path-to-file.c4gh> s3://<username>/<target-path-to-file
 where `s3cmd.conf` is a configuration file with the following content:
 ```ini
 [default]
-access_key = <USER_NAME>
-secret_key = <USER_NAME>
+access_key = <USER_LS-AAI_ID>
+secret_key = <USER_LS-AAI_ID>
 access_token=<JW_TOKEN>
 check_ssl_certificate = False
 check_ssl_hostname = False
@@ -84,6 +86,29 @@ multipart_chunk_size_mb = 50
 use_https = True
 socket_timeout = 30
 ```
+
+It is possible to download the `s3cmd.conf` file from the `sda-auth` service as described in the [Authentication for users with LS-AAI (mock or alive)](#authentication-for-users-with-ls-aai-mock-or-alive) section above. However, do note that `s3cmd.conf` downloaded from this service lacks the section header `[default]` which needs to be added manually if one wishes to use the file directly with `s3cmd`.
+
+For example, a `s3cmd.conf` file downloaded from `auth` after deploying the stack locally (with LS-AAI-mock as OIDC) would look like this:
+
+```ini
+access_key = jd123_lifescience-ri.eu
+secret_key = jd123_lifescience-ri.eu
+access_token=eyJraWQiOiJyc2ExIiwidH...
+check_ssl_certificate = False
+check_ssl_hostname = False
+encoding = UTF-8
+encrypt = False
+guess_mime_type = True
+host_base = localhost:8000
+host_bucket = localhost:8000
+human_readable_sizes = true
+multipart_chunk_size_mb = 50
+use_https = True
+socket_timeout = 30
+```
+
+where the acces token has been truncated for brevity. Please note that the option `use_https = True` is missing from the above file (therefore set implicitly to `False`) since the local deployment of the stack does not use TLS.
 
 ### The sda-cli tool
 
@@ -127,8 +152,6 @@ curl --cacert <path-to-certificate-file> -H "Authorization: Bearer $token" https
 ### Data access permissions
 
 In order for a user to access a file, permission to access the dataset that the file belongs to is needed. This is granted through [REMS](https://github.com/CSCfi/rems) in the form of `GA4GH` visas. For details see [starter-kit documentation on REMS](https://github.com/GenomicDataInfrastructure/starter-kit-rems) and the links therein.
-
-
 
 ## How to perform common admin tasks
 
@@ -237,4 +260,4 @@ Note that when applicable periodic `healthchecks` are in place to ensure that se
 
 As stated, we use [RabbitMQ](https://www.rabbitmq.com/) as our message broker between different services in this stack. Monitoring the status of the broker service can most conveniently be done via the web interface, which is accessible at http://localhost:15672/ (use `https` if TLS is enabled). By default, `user:password` credentials with values `test:test` are created upon deployment and can be changed by editing the `docker-compose.yml` file. There are two ways to create a password hash for RabbitMQ as described [here](https://www.rabbitmq.com/passwords.html#computing-password-hash)
 
-Broker messages are most conveniently generated by `scripts/sda-admin`as described above. If for some reason one wants to send MQ messages manually instead, there exist step-by-step examples [here](https://github.com/neicnordic/sda-pipeline/tree/master/dev_utils#json-formatted-messages).
+Broker messages are most conveniently generated by `scripts/sda-admin` as described above. If for some reason one wants to send MQ messages manually instead, there exist step-by-step examples [here](https://github.com/neicnordic/sda-pipeline/tree/master/dev_utils#json-formatted-messages).
