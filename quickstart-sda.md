@@ -58,17 +58,18 @@ The `sda-pipeline` only ingests files encrypted with the archive's `c4gh` public
 crypt4gh encrypt -f <file-to-encrypt> -p <sda-c4gh-public-key>
 ```
 
-where `<sda-c4gh-public-key>` is the archive's public key.
+where `<sda-c4gh-public-key>` is the archive's public key. Note that `docker-compose.yml` stores the archive's c4gh public key in a volume named `shared`, see [below](#how-to-perform-common-admin-tasks) for how to extract it.
 
 ### Uploading data
 
 Users can upload data to the SDA by transferring them directly to the archive's `s3inbox` with an S3 client tool such as [`s3cmd`](https://s3tools.org/s3cmd):
 
 ```shell
-s3cmd -c s3cmd.conf put <path-to-file.c4gh> s3://<username>/<target-path-to-file.c4gh>
+s3cmd -c s3cmd.conf put <path-to-file.c4gh> s3://<USER_LS-AAI_ID>/<target-path-to-file.c4gh>
 ```
 
-where `s3cmd.conf` is a configuration file with the following content:
+where `USER_LS-AAI_ID` is the user's LS-AAI ID with the `@` replaced by a `_` and `s3cmd.conf` is a configuration file with the following content:
+
 ```ini
 [default]
 access_key = <USER_LS-AAI_ID>
