@@ -144,11 +144,19 @@ For detailed documentation on the tool's capabilities and usage please refer [he
 
 ### Downloading data
 
-Users can directly download data from the SDA via `sda-download`, for more details see the service's [api reference](https://github.com/neicnordic/sda-download/blob/main/docs/API.md) and the examples [here](https://github.com/GenomicDataInfrastructure/starter-kit-storage-and-interfaces). In short, given a valid token, `$token`,  a user can download the file with file ID, `$fileID` by issuing the following command:
+Users can directly download data from the SDA via `sda-download`, for more details see the service's [api reference](https://github.com/neicnordic/sda-download/blob/main/docs/API.md). In short, given a [valid JW token](#sda-auth), `$token`,  a user can download the file with file ID, `$fileID` by issuing the following command:
 
 ```shell
 curl --cacert <path-to-certificate-file> -H "Authorization: Bearer $token" https://<sda-download_DOMAIN_NAME>/files/$fileID -o <output-filename>
 ```
+
+where for example `sda-download_DOMAIN_NAME` can be `login.gdi.nbis.se` or `localhost:8443` depending on the deployment. In the case of a local deployment, the certificate file can be obtained by running:
+
+```shell
+docker cp download:/shared/cert/ca.crt .
+```
+
+The `fileID` is a unique file identifier that can be obtained by calls to `sda-download`'s `/datasets` endpoint. For details and a concrete example on how to use `sda-download` with demo data please see [here](./README.md#get-token-or-downloading-data).
 
 ### Data access permissions
 
@@ -211,7 +219,7 @@ to trigger ingestion of the file.
 
 **Adding accession IDs**
 
-Check that the file has been ingested by listing the filenames currently in the "verified" queue waiting to have accession IDs assigned to them:
+In brief, accesion IDs are unique identifiers that are assigned to files in order to be able to reference them in the future. Check that the file has been ingested by listing the filenames currently in the "verified" queue waiting to have accession IDs assigned to them:
 
 ```shell
 ./sda-admin accession
