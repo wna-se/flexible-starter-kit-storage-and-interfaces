@@ -529,7 +529,7 @@ usage_general () {
 	Environment variables:
 
 	    MQ_CREDENTIALS, MQ_URL, MQ_EXCHANGE_PREFIX, MQ_QUEUE_PREFIX,
-	    SDA_CLI, SDA_CONFIG, SDA_KEY
+	    SDA_CLI, SDA_CONFIG, SDA_KEY, S3_ACCESS_KEY
 
 	        These variables corresponds to the similarly named
 	        global options.  The command line options will override
