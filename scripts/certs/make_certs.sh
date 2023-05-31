@@ -55,7 +55,6 @@ openssl req \
 	-newkey rsa:4096 \
 	-nodes \
 	-out server.csr 
-
 openssl x509 \
 	-CA ca.crt \
 	-CAcreateserial \
@@ -77,7 +76,6 @@ openssl req \
 	-nodes \
 	-out client.csr \
 	-subj '/CN=admin'
-
 openssl x509 \
 	-CA ca.crt \
 	-CAcreateserial \
