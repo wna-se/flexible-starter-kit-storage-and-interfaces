@@ -1,13 +1,20 @@
 #!/bin/sh
 
+# This script creates the neccessary certificates.  The certificates
+# are stored in the "/shared/cert" directory, or in the directory given
+# as the first argument.  This directory will be created if it does not
+# already exist.  If all certificates already exist, the script does
+# not recreate them.  Since the script changes ownership of the created
+# certificates, root privileges are required.
+
 set -e -u
 
 script_dir=$(dirname "$(realpath "$0")")
 
 # Use 1st argument as output directory, or default to /shared/cert.
 out_dir=${1-/shared/cert}
-mkdir -p -- "$out_dir" || exit
-cd -- "$out_dir" || exit
+mkdir -p -- "$out_dir"
+cd -- "$out_dir"
 
 # Check if certificates exist.
 echo 'Checking certificates'
