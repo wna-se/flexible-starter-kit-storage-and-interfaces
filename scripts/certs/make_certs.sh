@@ -1,24 +1,20 @@
-#!/bin/bash
+#!/bin/sh
 
 set -e -u
 
 script_dir=$(dirname "$(realpath "$0")")
 
+# Use 1st argument as output directory, or default to /shared/cert.
 out_dir=${1-/shared/cert}
 mkdir -p -- "$out_dir" || exit
 cd -- "$out_dir" || exit
 
-# List all certificates we want, so that we can check if they already exist.
-server=( ca.crt server.{crt,key} )
-client=( client.{crt,key} )
-targets=( "${client[@]}" "${server[@]}" )
-
 # Check if certificates exist.
 echo 'Checking certificates'
 recreate=false
-for target in "${targets[@]}"; do
-    if [ ! -f "$target" ]; then
-	printf '"%s" is missing\n' "$target"
+for cert in ca.crl server.crt server.key client.crt client.key; do
+    if [ ! -f "$cert" ]; then
+	printf '"%s" is missing\n' "$cert"
         recreate=true
         break
     fi
@@ -93,7 +89,7 @@ openssl x509 \
 	-out client.crt \
 	-req
 
-# fix permissions
+# Fix permissions and ownership.
 cp server.key mq.key
 chown 0:101 mq.key
 chmod 640 mq.key
