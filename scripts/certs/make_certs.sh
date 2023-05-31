@@ -2,21 +2,11 @@
 
 set -e -u
 
-script_dir=$(dirname "$0")
+script_dir=$(dirname "$(realpath "$0")")
 
-out_dir=/shared/cert
+out_dir=${1-/shared/cert}
 mkdir -p -- "$out_dir" || exit
 cd -- "$out_dir" || exit
-
-# Read the most recently used serial number, if available.
-# Increment by one and store it for the next time.
-if [ -f "$script_dir"/serial.txt ]; then
-	read serial < "$script_dir"/serial.txt
-	serial=$((serial + 1))
-else
-	serial=1
-fi
-printf '%d\n' "$serial" >"$script_dir"/serial.txt
 
 # List all certificates we want, so that we can check if they already exist.
 server=( ca.crt server.{crt,key} )
@@ -72,14 +62,14 @@ openssl req \
 
 openssl x509 \
 	-CA ca.crt \
+	-CAcreateserial \
 	-CAkey ca.key \
 	-days 1200 \
 	-extensions server_cert \
 	-extfile "$script_dir/ssl.cnf" \
 	-in server.csr \
 	-out server.crt \
-	-req \
-	-set_serial "$serial"
+	-req
 
 # Create certificate for clients.
 openssl req \
@@ -94,14 +84,14 @@ openssl req \
 
 openssl x509 \
 	-CA ca.crt \
+	-CAcreateserial \
 	-CAkey ca.key \
 	-days 1200 \
 	-extensions client_cert \
 	-extfile "$script_dir/ssl.cnf" \
 	-in client.csr \
 	-out client.crt \
-	-req \
-	-set_serial "$serial"
+	-req
 
 # fix permissions
 cp server.key mq.key
