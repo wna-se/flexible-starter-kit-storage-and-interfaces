@@ -12,7 +12,7 @@ cd -- "$out_dir" || exit
 # Check if certificates exist.
 echo 'Checking certificates'
 recreate=false
-for cert in ca.crl server.crt server.key client.crt client.key; do
+for cert in ca.crt server.crt server.key client.crt client.key; do
     if [ ! -f "$cert" ]; then
 	printf '"%s" is missing\n' "$cert"
         recreate=true
