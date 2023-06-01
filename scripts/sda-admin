@@ -164,9 +164,7 @@ curl () {
 	command curl \
 		--silent \
 		--show-error \
-		--request POST \
 		--user "$MQ_CREDENTIALS" \
-		--header "Content-Type: application/json" \
 		"$@" |
 	jq 'if type == "object" and has("error") then halt_error(1) else . end'
 }
@@ -178,7 +176,7 @@ publish () {
 
 	while IFS= read -r message; do
 		printf "%s\n" "$message" | base64 -d |
-		curl --data @- "$url_exchanges/publish"
+		curl --json @- "$url_exchanges/publish"
 	done >/dev/null
 }
 
@@ -279,7 +277,7 @@ get_messages () {
 	# Get upload messages and ACK them all without requeuing them.
 	# This empties the queue.
 	#
-	curl --data '{"count":-1,"encoding":"base64","ackmode":"ack_requeue_false"}' \
+	curl --json '{"count":-1,"encoding":"base64","ackmode":"ack_requeue_false"}' \
 		"$url_queues/$queue/get" >"$tmpfile"
 
 	# Requeue the messages that we're not interested in.
@@ -306,7 +304,7 @@ get_filenames () {
 
 	queue=$1
 
-	curl --data \
+	curl --json \
 		'{"count":-1,"encoding":"base64","ackmode":"ack_requeue_true"}' \
 		"$url_queues/$queue/get" |
 	jq -r --arg access_key "$S3_ACCESS_KEY" '
