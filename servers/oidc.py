@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 HTTP_PROTOCOL = "http"
-
+OIDC_PORT = 8080
 
 def _set_ssl() -> Union[ssl.SSLContext, None]:
     global HTTP_PROTOCOL
@@ -44,7 +44,7 @@ def _generate_token() -> Tuple:
     # See available claims here: http://www.iana.org/assignments/jwt/jwt.xhtml
     # the important claim is the "authorities"
     header = {
-        "jku": f"{HTTP_PROTOCOL}://oidc:8080/jwk",
+        "jku": f"{HTTP_PROTOCOL}://oidc:{OIDC_PORT}/jwk",
         "kid": "EC1",
         "alg": "ES256",
         "typ": "JWT",
@@ -54,7 +54,7 @@ def _generate_token() -> Tuple:
         "aud": ["aud1", "aud2"],
         "azp": "azp",
         "scope": "openid ga4gh_passport_v1",
-        "iss": "https://oidc:8080/",
+        "iss": f"https://oidc:{OIDC_PORT}/",
         "exp": 9999999999,
         "iat": 1561621913,
         "jti": "6ad7aa42-3e9c-4833-bd16-765cb80c2102",
@@ -64,21 +64,21 @@ def _generate_token() -> Tuple:
         "aud": ["aud2", "aud3"],
         "azp": "azp",
         "scope": "openid ga4gh_passport_v1",
-        "iss": "https://oidc:8080/",
+        "iss": f"https://oidc:{OIDC_PORT}/",
         "exp": 9999999999,
         "iat": 1561621913,
         "jti": "6ad7aa42-3e9c-4833-bd16-765cb80c2102",
     }
     empty_payload = {
         "sub": "requester@demo.org",
-        "iss": "https://oidc:8080/",
+        "iss": f"https://oidc:{OIDC_PORT}/",
         "exp": 99999999999,
         "iat": 1547794655,
         "jti": "6ad7aa42-3e9c-4833-bd16-765cb80c2102",
     }
     # Craft passports
     passport_terms = {
-        "iss": "https://oidc:8080/",
+        "iss": f"https://oidc:{OIDC_PORT}/",
         "sub": "requester@demo.org",
         "ga4gh_visa_v1": {
             "type": "AcceptedTermsAndPolicies",
@@ -93,7 +93,7 @@ def _generate_token() -> Tuple:
     }
     # passport for dataset permissions 1
     passport_dataset1 = {
-        "iss": "https://oidc:8080/",
+        "iss": f"https://oidc:{OIDC_PORT}/",
         "sub": "requester@demo.org",
         "ga4gh_visa_v1": {
             "type": "ControlledAccessGrants",
@@ -157,12 +157,12 @@ def _generate_token() -> Tuple:
 async def fixed_response(request: web.Request) -> web.Response:
     global HTTP_PROTOCOL
     WELL_KNOWN = {
-        "issuer": f"{HTTP_PROTOCOL}://oidc:8080",
-        "authorization_endpoint": f"{HTTP_PROTOCOL}://oidc:8080/authorize",
-        "registration_endpoint": f"{HTTP_PROTOCOL}://oidc:8080/register",
-        "token_endpoint": f"{HTTP_PROTOCOL}://oidc:8080/token",
-        "userinfo_endpoint": f"{HTTP_PROTOCOL}://oidc:8080/userinfo",
-        "jwks_uri": f"{HTTP_PROTOCOL}://oidc:8080/jwk",
+        "issuer": f"{HTTP_PROTOCOL}://oidc:{OIDC_PORT}",
+        "authorization_endpoint": f"{HTTP_PROTOCOL}://oidc:{OIDC_PORT}/authorize",
+        "registration_endpoint": f"{HTTP_PROTOCOL}://oidc:{OIDC_PORT}/register",
+        "token_endpoint": f"{HTTP_PROTOCOL}://oidc:{OIDC_PORT}/token",
+        "userinfo_endpoint": f"{HTTP_PROTOCOL}://oidc:{OIDC_PORT}/userinfo",
+        "jwks_uri": f"{HTTP_PROTOCOL}://oidc:{OIDC_PORT}/jwk",
         "response_types_supported": [
             "code",
             "id_token",
@@ -306,4 +306,4 @@ def init() -> web.Application:
 if __name__ == "__main__":
     ssl_context = _set_ssl()
     DATA = _generate_token()
-    web.run_app(init(), port=8080, ssl_context=ssl_context)
+    web.run_app(init(), port=OIDC_PORT, ssl_context=ssl_context)

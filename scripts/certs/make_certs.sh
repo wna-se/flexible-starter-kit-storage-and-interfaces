@@ -55,5 +55,9 @@ cp "$out_dir"/server.key "$out_dir"/download.key
 chown 0:65534 "$out_dir"/download.key
 chmod 640 "$out_dir"/download.key
 
+cp "$out_dir"/server.key "$out_dir"/auth.key
+chown 0:65534 "$out_dir"/auth.key
+chmod 640 "$out_dir"/auth.key
+
 chown 0:65534 "$out_dir"/client.*
 chmod 640 "$out_dir"/client.*

@@ -1,3 +1,6 @@
+# Services auth, download and s3inbox in this file will try to connect to the ls-aai-mock service.
+# Remember to start the later while this stack is being deployed. See documentation for more details.
+
 services:
   credentials:
     container_name: credentials
@@ -18,59 +21,34 @@ services:
       - ./scripts:/scripts
       - shared:/shared
 
-  data_loader:
-    container_name: data_loader
-    command:
-      - "/bin/sh"
-      - "/load_data.sh"
-    depends_on:
-      s3inbox:
-        condition: service_started
-    image: python:3.10-alpine
-    networks:
-      - secure
-    profiles:
-      - demo
-    volumes:
-      - ./scripts/load_data.sh:/load_data.sh
-      - shared:/shared
-
-### OIDC (LS-AAI in  a box)
-  oidc:
-    command:
-      - /bin/sh
-      - -c
-      - |
-        pip install --upgrade pip
-        pip install aiohttp Authlib
-        python -u /oidc.py &
-        echo "$$!" >/tmp/server.pid
-        wait
-    container_name: oidc
+  auth:
+    container_name: auth
+    image: ghcr.io/neicnordic/sda-auth:v0.7.7
     depends_on:
       credentials:
         condition: service_completed_successfully
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "sh",
-          "-c",
-          "kill -0 $$(cat /tmp/server.pid)"
-        ]
-      interval: 5s
-      timeout: 10s
-      retries: 20
-    image: python:3.10-slim
+    environment:
+      - ELIXIR_ID=XC56EL11xx
+      - ELIXIR_PROVIDER=http://aai-mock:8080/oidc/
+      - ELIXIR_SECRET=wHPVQaYXmdDHg
+      - ELIXIR_JWKPATH=jwk
+      - ELIXIR_REDIRECTURL=https://localhost:8085/elixir/login
+      - LOG_LEVEL=info
+      - S3INBOX=localhost:8000
+      - JWTISSUER=http://auth:8085
+      - JWTPRIVATEKEY=shared/keys/jwt.key
+      - JWTSIGNATUREALG=ES256
+      - SERVER_CERT=shared/cert/server.crt
+      - SERVER_KEY=shared/cert/auth.key
+      - RESIGNJWT=False
+    volumes:
+      - shared:/shared
+    ports:
+      - 8085:8080
     networks:
       - public
-    ports:
-      - "8080:8080"
+      - my-app-network
     restart: always
-    volumes:
-      - ./servers/oidc.py:/oidc.py
-      - shared:/shared
-###
 
   rabbitmq:
     container_name: rabbitmq
@@ -159,8 +137,6 @@ services:
     depends_on:
       credentials:
         condition: service_completed_successfully
-      oidc:
-        condition: service_healthy
       postgres:
         condition: service_healthy
       s3:
@@ -172,6 +148,7 @@ services:
     networks:
       - public
       - secure
+      - my-app-network
     ports:
       - 8443:8443
     restart: always
@@ -306,10 +283,12 @@ services:
       - DB_PASSWORD=inbox
       - DB_USER=inbox
       - SERVER_CONFFILE=/config.yaml
+      - SERVER_JWTPUBKEYURL=http://aai-mock:8080/oidc/jwk
     image: ghcr.io/neicnordic/sda-s3proxy:v0.2.19
     networks:
       - public
       - secure
+      - my-app-network
     ports:
       - "8000:8000"
     restart: always
@@ -325,3 +304,6 @@ volumes:
 networks:
   public:
   secure:
+  # required for allowing auth to connect to ls-aai-mock
+  my-app-network:
+    name: my-app-network
