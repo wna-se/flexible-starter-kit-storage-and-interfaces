@@ -61,7 +61,7 @@ To deploy use the following command:
 docker compose -f docker-compose-demo.yml up -d
 ```
 
-After deployment is done, follow the following instructions to test that the demo worked as expected.
+After deployment is done, follow the instructions below to test that the demo worked as expected.
 
 ### **Download unencrypted files directly**
 
