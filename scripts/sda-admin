@@ -241,13 +241,13 @@ rotate_dump_files () {
 }
 
 get_messages () {
-	# Retrieves the messages on the queue given by the 1st argument.
-	# The remaining arguments are pathnames that we filter the
-	# messages with (together with the access key from the S3
-	# configuration).  Any message that does not correspond to any
-	# of the given pathnames is requeued.  The remaining messages
-	# are individually base64-encoded and outputted on the standard
-	# output stream, one message per line of output.
+	# Retrieves the messages from the RabbitMQ queue given by the
+	# 1st argument.  The remaining arguments are pathnames that we
+	# filter the messages with (together with the access key from
+	# the S3 configuration).  Any message that does not correspond
+	# to any of the given pathnames is requeued.  The remaining
+	# messages are individually base64-encoded and outputted on the
+	# standard output stream, one message per line of output.
 	#
 	# Pathnames to files may be given with or without the trailing
 	# ".c4gh" filename suffix.
@@ -259,8 +259,8 @@ get_messages () {
 	#
 	# Calling this function will additionally save the messages of
 	# the given queue to a file in the current directory called
-	# "<queue>-0.json".  If this file exists, it will be renamed to
-	# "<queue>-1.json", etc. up to "<queue>-9.json".
+	# "<queue>-0.json".  If this file exists, it will be rotated to
+	# "<queue>-1.json" first, etc., up to "<queue>-9.json".
 
 	queue=$1
 	shift
