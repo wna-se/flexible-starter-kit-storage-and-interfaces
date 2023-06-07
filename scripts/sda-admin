@@ -496,6 +496,48 @@ dataset () {
 	publish
 }
 
+restore () {
+	# Given a JSON dump file with a filename on the form
+	# "<queue>-<n>.json", this function merges the RabbitMQ messages
+	# in that file into the relevant RabbitMQ queue, removing
+	# duplicates based on the filepath in the message payload.  If
+	# there are duplicates, the message from the dump file is given
+	# precedence (on account of being seen first).
+
+	# We expect exactly one argument here; the name of the dump
+	# file.
+	if [ "$#" -ne 1 ]; then
+		usage restore >&2
+		return 1
+	fi
+
+	dumpfile=$1
+
+	queue=$(basename "$dumpfile")
+	queue=${queue%%-*}
+
+	# Verify queue name.
+	case $queue in
+		inbox|verified|completed)
+			# Do nothing.
+			;;
+		*)
+			printf 'Invalid queue name: %s\n' "$queue" >&2
+			exit 1
+	esac
+
+	# Combine the messages from the dump file with the messages from
+	# the queue, remove any duplicates based on the filepath in the
+	# messages' payload.  Then requeue the merged set of messages.
+	{
+		cat "$dumpfile";
+		curl --json '{"count":-1,"encoding":"auto","ackmode":"ack_requeue_false"}' \
+			"$url_queues/$queue/get"
+	} |
+	jq -s 'flatten(1) | unique_by(.payload | fromjson.filepath)[] | @base64' |
+	publish
+}
+
 usage () {
 	case ${1-} in
 		upload|ingest|accession|dataset)
@@ -777,7 +819,7 @@ fi
 
 # Handle sub-commands.
 case ${1-} in
-	upload|ingest|accession|dataset)
+	upload|ingest|accession|dataset|restore)
 		# Ensure that S3_ACCESS_KEY is actually set before
 		# trying to use it, or bail out here.
 		: ${S3_ACCESS_KEY?Missing S3 access key}
