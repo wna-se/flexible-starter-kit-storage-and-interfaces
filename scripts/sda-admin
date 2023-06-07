@@ -540,7 +540,7 @@ restore () {
 
 usage () {
 	case ${1-} in
-		upload|ingest|accession|dataset)
+		upload|ingest|accession|dataset|restore)
 			"usage_$1"
 			;;
 		"")
@@ -585,6 +585,9 @@ usage_general () {
 	    $myself [...] dataset datasetID pathname [pathname...]
 	    $myself [...] dataset
 	    $myself help dataset
+
+	    $myself [...] restore '<queue>-<n>.json'
+	    $myself help restore
 
 	Environment variables:
 
@@ -765,6 +768,26 @@ usage_dataset () {
 	    $myself dataset MYSET001 project/data/set1/
 
 	USAGE_DATASET
+}
+
+usage_restore () {
+	cat <<-USAGE_RESTORE
+	The "restore" sub-command is used for restoring the RabbitMQ
+	messages from one of the "<queue>-<n>.json" files that are
+	automatically created by this script.  The messages in the JSON
+	file are added to the messages in the corresponding RabbitMQ
+	queue, but if there are duplicates based on the filepath in
+	the messages' payload, the duplicate(s) from the queue will be
+	dropped.
+
+	Example usage:
+
+	    Restoring the messages from the "inbox-0.json" file (the
+	    most recent backup of the "inbox" queue):
+
+	    $myself restore inbox-0.json
+
+	USAGE_RESTORE
 }
 
 # Handle global options.
