@@ -227,6 +227,20 @@ map( del(.tmp_paths) | @base64 )[]
 JQ_FILTER
 )
 
+rotate_dump_files () {
+	# Given a RabbitMQ queue name, this function rotates the queue
+	# dump file "<queue>-0.json" to "<queue>-1.json", etc. up to
+	# "<queue>-9.json".
+
+	queue=$1
+
+	for i in 8 7 6 5 4 3 2 1 0; do
+		if [ -f "$queue-$i.json" ]; then
+			mv "$queue-$i.json" "$queue-$(( i + 1 )).json"
+		fi
+	done
+}
+
 get_messages () {
 	# Retrieves the messages on the queue given by the 1st argument.
 	# The remaining arguments are pathnames that we filter the
@@ -243,6 +257,11 @@ get_messages () {
 	# file paths in or below that directory will be returned.  If
 	# the given pathname is an empty string (""), then all messages
 	# are returned.
+	#
+	# Calling this function will additionally save the messages of
+	# the given queue to a file in the current directory called
+	# "<queue>-0.json".  If this file exists, it will be renamed to
+	# "<queue>-1.json", etc. up to "<queue>-9.json".
 
 	queue=$1
 	shift
@@ -270,9 +289,8 @@ get_messages () {
 		set -- "$@" "$pathname"
 	done
 
-	tmpfile=$(mktemp)
-	# shellcheck disable=SC2064
-	trap "rm '$tmpfile'" EXIT
+	tmpfile=./$queue-0.json
+	rotate_dump_files "$queue"
 
 	# Get upload messages and ACK them all without requeuing them.
 	# This empties the queue.
@@ -292,9 +310,6 @@ get_messages () {
 	# keep.  This set does not contain any duplicated file paths.
 	#
 	jq -r --argjson yes true "$jq_filter" --args "$@" <"$tmpfile"
-
-	rm -f "$tmpfile"
-	trap - EXIT
 }
 
 get_filenames () {
