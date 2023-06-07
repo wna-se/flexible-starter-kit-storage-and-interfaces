@@ -1,63 +1,116 @@
 #!/bin/sh
 
-set -e
+# This script creates the neccessary certificates.  The certificates
+# are stored in the "/shared/cert" directory, or in the directory given
+# as the first argument.  This directory will be created if it does not
+# already exist.  If all certificates already exist, the script does
+# not recreate them.  Since the script changes ownership of the created
+# certificates, root privileges are required.
 
-out_dir="/shared/cert"
+set -e -u
 
-script_dir="$(dirname "$0")"
-mkdir -p "$out_dir"
+script_dir=$(dirname "$(realpath "$0")")
 
-# list all certificates we want, so that we can check if they already exist
-server="/shared/cert/ca.crt /shared/cert/server.crt /shared/cert/server.key"
-client="/shared/cert/client.crt /shared/cert/client.key"
-targets="$client $server"
+# Use 1st argument as output directory, or default to /shared/cert.
+out_dir=${1-/shared/cert}
+mkdir -p -- "$out_dir"
+cd -- "$out_dir"
 
-echo ""
-echo "Checking certificates"
-recreate="false"
-# check if certificates exist
-for target in $targets; do
-    if [ ! -f "$target" ]; then
-        echo "$target is missing"
-        recreate="true"
+# Check if certificates exist.
+echo 'Checking certificates'
+recreate=false
+for cert in ca.crt server.crt server.key client.crt client.key
+do
+    if [ ! -f "$cert" ]; then
+	printf '"%s" is missing\n' "$cert"
+        recreate=true
         break
     fi
 done
 
-# only recreate certificates if any certificate is missing
-if [ "$recreate" = "false" ]; then
-    echo "certificates already exists"
-    exit 0
+# Only recreate certificates if any certificate is missing.
+if ! "$recreate"; then
+    echo 'Certificates already exists'
+    exit
 fi
 
-# create CA certificate
-openssl req -config "$script_dir/ssl.cnf" -new -sha256 -nodes -extensions v3_ca -out "$out_dir/ca.csr" -keyout "$out_dir/ca.key"
-openssl req -config "$script_dir/ssl.cnf" -key "$out_dir/ca.key" -x509 -new -days 7300 -sha256 -nodes -extensions v3_ca -out "$out_dir/ca.crt"
+# Create CA certificate.
+openssl req \
+	-config "$script_dir/ssl.cnf" \
+	-extensions v3_ca \
+	-keyout ca.key \
+	-new \
+	-nodes \
+	-out ca.csr \
+	-sha256
+openssl req \
+	-config "$script_dir/ssl.cnf" \
+	-days 7300 \
+	-extensions v3_ca \
+	-key ca.key \
+	-new \
+	-nodes \
+	-out ca.crt \
+	-sha256 \
+	-x509
 
-# Create certificate for servers
-openssl req -config "$script_dir/ssl.cnf" -new -nodes -newkey rsa:4096 -keyout "$out_dir/server.key" -out "$out_dir/server.csr" -extensions server_cert
-openssl x509 -req -in "$out_dir/server.csr" -days 1200 -CA "$out_dir/ca.crt" -CAkey "$out_dir/ca.key" -set_serial 01 -out "$out_dir/server.crt" -extensions server_cert -extfile "$script_dir/ssl.cnf"
+# Create certificate for servers.
+openssl req \
+	-config "$script_dir/ssl.cnf" \
+	-extensions server_cert \
+	-keyout server.key \
+	-new \
+	-newkey rsa:4096 \
+	-nodes \
+	-out server.csr 
+openssl x509 \
+	-CA ca.crt \
+	-CAcreateserial \
+	-CAkey ca.key \
+	-days 1200 \
+	-extensions server_cert \
+	-extfile "$script_dir/ssl.cnf" \
+	-in server.csr \
+	-out server.crt \
+	-req
 
-# Create client certificate
-openssl req -config "$script_dir/ssl.cnf" -new -nodes -newkey rsa:4096 -keyout "$out_dir/client.key" -out "$out_dir/client.csr" -extensions client_cert -subj "/CN=admin"
-openssl x509 -req -in "$out_dir/client.csr" -days 1200 -CA "$out_dir/ca.crt" -CAkey "$out_dir/ca.key" -set_serial 01 -out "$out_dir/client.crt" -extensions client_cert -extfile "$script_dir/ssl.cnf"
+# Create certificate for clients.
+openssl req \
+	-config "$script_dir/ssl.cnf" \
+	-extensions client_cert \
+	-keyout client.key \
+	-new \
+	-newkey rsa:4096 \
+	-nodes \
+	-out client.csr \
+	-subj '/CN=admin'
+openssl x509 \
+	-CA ca.crt \
+	-CAcreateserial \
+	-CAkey ca.key \
+	-days 1200 \
+	-extensions client_cert \
+	-extfile "$script_dir/ssl.cnf" \
+	-in client.csr \
+	-out client.crt \
+	-req
 
-# fix permissions
-cp "$out_dir"/server.key "$out_dir"/mq.key
-chown 0:101 "$out_dir"/mq.key
-chmod 640 "$out_dir"/mq.key
+# Fix permissions and ownership.
+cp server.key mq.key
+chown 0:101 mq.key
+chmod 640 mq.key
 
-cp "$out_dir"/server.key "$out_dir"/db.key
-chown 0:70 "$out_dir"/db.key
-chmod 640 "$out_dir"/db.key
+cp server.key db.key
+chown 0:70 db.key
+chmod 640 db.key
 
-cp "$out_dir"/server.key "$out_dir"/download.key
-chown 0:65534 "$out_dir"/download.key
-chmod 640 "$out_dir"/download.key
+cp server.key download.key
+chown 0:65534 download.key
+chmod 640 download.key
 
-cp "$out_dir"/server.key "$out_dir"/auth.key
-chown 0:65534 "$out_dir"/auth.key
-chmod 640 "$out_dir"/auth.key
+cp server.key auth.key
+chown 0:65534 auth.key
+chmod 640 auth.key
 
-chown 0:65534 "$out_dir"/client.*
-chmod 640 "$out_dir"/client.*
+chown 0:65534 client.*
+chmod 640 client.*
