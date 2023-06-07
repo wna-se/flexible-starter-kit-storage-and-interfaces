@@ -100,6 +100,8 @@ services:
     extends:
       file: docker-compose.yml
       service: s3inbox
+    environment:
+      - SERVER_JWTPUBKEYURL=
 
 volumes:
   pgdata:
@@ -109,3 +111,5 @@ volumes:
 networks:
   public:
   secure:
+  my-app-network:
+    name: my-app-network
