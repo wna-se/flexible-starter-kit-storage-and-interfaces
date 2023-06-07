@@ -845,7 +845,7 @@ case ${1-} in
 	upload|ingest|accession|dataset|restore)
 		# Ensure that S3_ACCESS_KEY is actually set before
 		# trying to use it, or bail out here.
-		: ${S3_ACCESS_KEY?Missing S3 access key}
+		: "${S3_ACCESS_KEY?Missing S3 access key}"
 		"$@"
 		;;
 	help)
