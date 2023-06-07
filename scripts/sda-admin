@@ -305,8 +305,8 @@ get_messages () {
 	jq -r --argjson yes false "$jq_filter" --args "$@" <"$dumpfile" |
 	publish
 
-	# Filter out (extract) the the set of messages that we want to
-	# keep.  This set does not contain any duplicated file paths.
+	# Filter out (extract) the set of messages that we want to keep.
+	# This set does not contain any duplicated file paths.
 	#
 	jq -r --argjson yes true "$jq_filter" --args "$@" <"$dumpfile"
 }
