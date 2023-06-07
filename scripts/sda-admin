@@ -288,27 +288,27 @@ get_messages () {
 		set -- "$@" "$pathname"
 	done
 
-	tmpfile=./$queue-0.json
+	dumpfile=./$queue-0.json
 	rotate_dump_files "$queue"
 
-	# Get upload messages and ACK them all without requeuing them.
+	# Get messages and ACK them all without requeuing them.
 	# This empties the queue.
 	#
 	curl --json '{"count":-1,"encoding":"auto","ackmode":"ack_requeue_false"}' \
-		"$url_queues/$queue/get" >"$tmpfile"
+		"$url_queues/$queue/get" >"$dumpfile"
 
 	# Requeue the messages that we're not interested in.
 	#
 	# Note that we only requeue unique messages, based on the file
 	# path stored in each message's payload.
 	#
-	jq -r --argjson yes false "$jq_filter" --args "$@" <"$tmpfile" |
+	jq -r --argjson yes false "$jq_filter" --args "$@" <"$dumpfile" |
 	publish
 
 	# Filter out (extract) the the set of messages that we want to
 	# keep.  This set does not contain any duplicated file paths.
 	#
-	jq -r --argjson yes true "$jq_filter" --args "$@" <"$tmpfile"
+	jq -r --argjson yes true "$jq_filter" --args "$@" <"$dumpfile"
 }
 
 get_filenames () {
