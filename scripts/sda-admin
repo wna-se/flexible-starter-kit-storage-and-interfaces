@@ -530,7 +530,7 @@ restore () {
 	# the queue, remove any duplicates based on the filepath in the
 	# messages' payload.  Then requeue the merged set of messages.
 	{
-		cat "$dumpfile";
+		cat "$dumpfile" &&
 		curl --json '{"count":-1,"encoding":"auto","ackmode":"ack_requeue_false"}' \
 			"$url_queues/$queue/get"
 	} |
