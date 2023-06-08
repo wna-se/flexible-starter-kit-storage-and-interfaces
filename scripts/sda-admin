@@ -534,7 +534,7 @@ restore () {
 		curl --json '{"count":-1,"encoding":"auto","ackmode":"ack_requeue_false"}' \
 			"$url_queues/$queue/get"
 	} |
-	jq -s 'flatten(1) | unique_by(.payload | fromjson.filepath)[] | @base64' |
+	jq -r -s 'flatten(1) | unique_by(.payload | fromjson.filepath)[] | @base64' |
 	publish
 }
 
