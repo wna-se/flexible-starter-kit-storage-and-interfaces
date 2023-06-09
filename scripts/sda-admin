@@ -10,7 +10,7 @@ myself=$0
 
 MQ_CREDENTIALS=${MQ_CREDENTIALS-test:test}		# --mq-credentials user:pass
 MQ_URL=${MQ_URL-http://localhost:15672}			# --mq-url URL
-MQ_EXCHANGE_PREFIX=${MQ_EXCHANGE_PREFIX-gdi/sda}	# --mq-exchange-prefix some/string
+MQ_EXCHANGE_PREFIX=${MQ_EXCHANGE_PREFIX-sda}		# --mq-exchange-prefix string
 MQ_QUEUE_PREFIX=${MQ_QUEUE_PREFIX-gdi}			# --mq-queue-prefix string
 
 SDA_CONFIG=${SDA_CONFIG-s3cmd.conf}			# --sda-config pathname
@@ -828,7 +828,7 @@ while true; do
 done
 
 url_api=$MQ_URL/api
-url_exchanges=$url_api/exchanges/$MQ_EXCHANGE_PREFIX
+url_exchanges=$url_api/exchanges/$MQ_QUEUE_PREFIX/$MQ_EXCHANGE_PREFIX
 url_queues=$url_api/queues/$MQ_QUEUE_PREFIX
 
 # Handle S3_ACCESS_KEY.
