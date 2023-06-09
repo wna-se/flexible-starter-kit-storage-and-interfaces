@@ -52,6 +52,7 @@ encrypt () {
 
 		# Skip if the unencrypted pathname is already in the
 		# list.
+		#
 		for dup do
 			if [ "$pathname" = "$dup" ]; then
 				continue 2
@@ -60,14 +61,17 @@ encrypt () {
 
 		# Remove the encrypted variant of the file, if it
 		# exists.
+		#
 		rm -f "$pathname.c4gh"
 
 		# Remember the unencrypted variant of the file for
 		# encryption later.
+		#
 		set -- "$@" "$pathname"
 	done
 
 	# If there are files to encrypt, encrypt them.
+	#
 	if [ "$#" -gt 0 ]; then
 		"$SDA_CLI" encrypt -key "$SDA_KEY" "$@"
 	fi
@@ -100,6 +104,7 @@ upload () {
 	shift "$(( OPTIND - 1 ))"
 
 	# Sanity check the target directory path.
+	#
 	case ${target_dir-} in
 		*..*)
 			echo 'Target path contains ".."' >&2
@@ -117,6 +122,7 @@ upload () {
 			# We do this in a subshell to isolate the
 			# changes made to the "target_dir" variable in
 			# the recursive call.
+			#
 			(
 				upload -t "${target_dir-.}/$(basename "$pathname")" \
 					"$pathname"/*
@@ -131,6 +137,7 @@ upload () {
 	# Ensure that our list of files to upload only consists of
 	# encrypted files that exists, and that this list does not
 	# contain duplicate entries.
+	#
 	for pathname do
 		shift
 		pathname=${pathname%.c4gh}.c4gh
@@ -150,6 +157,7 @@ upload () {
 
 	# If there are files to upload, upload them, possibly in a
 	# subdirectory of the user's S3 bucket.
+	#
 	if [ "$#" -gt 0 ]; then
 		"$SDA_CLI" upload \
 			-config "$SDA_CONFIG" \
@@ -185,9 +193,11 @@ map(
 	# Add an array of pathnames that would match this message.  This
 	# includes the pathname of each parent directory, leading up to
 	# and including the pathname of the file itself.
+	#
 	.tmp_paths = [
 		# The file's full pathname is part of the message's
 		# payload (a JSON encoded object).
+		#
 		foreach (
 			.payload |
 			fromjson.filepath |
@@ -200,6 +210,7 @@ map(
 	] |
 	# The last element is the full file path and should not have a
 	# trailing slash.
+	#
 	.tmp_paths[-1] |= rtrimstr("/")
 ) |
 [
@@ -207,6 +218,7 @@ map(
 	# computed pathnames in the "tmp_paths" array in each message.
 	# Depending on the $yes boolean variable, extract or discard
 	# matching messages.
+	#
 	JOIN(
 		INDEX($ARGS.positional[]; .);
 		.[];
@@ -221,6 +233,7 @@ map(
 # Deduplicate the extracted messages on the full pathname of the file,
 # then remove the "tmp_paths" array from each message and base64 encode
 # them.
+#
 unique_by(.tmp_paths[-1]) |
 map( del(.tmp_paths) | @base64 )[]
 JQ_FILTER
@@ -385,6 +398,7 @@ accession () {
 		shift
 
 		# The filename must not end in "/".
+		#
 		case $1 in
 			*/)
 				err=true
@@ -395,6 +409,7 @@ accession () {
 		shift 2
 
 		# The format string must contain exactly one "%".
+		#
 		case $accession_format in
 			*%*%*)
 				err=true
@@ -423,6 +438,7 @@ accession () {
 		# If "$accession_format" is set, then we should use that
 		# with "$counter" to calculate the new accession ID.
 		# Otherwise just use "$accession_id" directly.
+		#
 		if [ "${accession_format+set}" = set ]; then
 			# shellcheck disable=SC2059
 			accession_id=$( printf "$accession_format" "$counter" )
@@ -505,8 +521,9 @@ restore () {
 	# precedence (on account of being seen first).
 
 	# We expect exactly one argument here; the name of the dump
-	# file.
-	if [ "$#" -ne 1 ]; then
+	# file.  That file must exist.
+	#
+	if [ "$#" -ne 1 ] || [ ! -f "$1" ]; then
 		usage restore >&2
 		return 1
 	fi
@@ -517,6 +534,7 @@ restore () {
 	queue=${queue%%-*}
 
 	# Verify queue name.
+	#
 	case $queue in
 		inbox|verified|completed)
 			# Do nothing.
@@ -529,6 +547,7 @@ restore () {
 	# Combine the messages from the dump file with the messages from
 	# the queue, remove any duplicates based on the filepath in the
 	# messages' payload.  Then requeue the merged set of messages.
+	#
 	{
 		cat "$dumpfile" &&
 		curl --json '{"count":-1,"encoding":"auto","ackmode":"ack_requeue_false"}' \
@@ -791,6 +810,7 @@ usage_restore () {
 }
 
 # Handle global options.
+#
 while true; do
 	case ${1-} in
 		--mq-credentials)
@@ -832,6 +852,7 @@ url_exchanges=$url_api/exchanges/$MQ_QUEUE_PREFIX/$MQ_EXCHANGE_PREFIX
 url_queues=$url_api/queues/$MQ_QUEUE_PREFIX
 
 # Handle S3_ACCESS_KEY.
+#
 if [ "${S3_ACCESS_KEY+set}" != set ] && [ -f "$SDA_CONFIG" ]; then
 	S3_ACCESS_KEY=$(
 		sed	-e '/^access_key[[:blank:]]*=[[:blank:]]*/!d' \
@@ -841,10 +862,12 @@ if [ "${S3_ACCESS_KEY+set}" != set ] && [ -f "$SDA_CONFIG" ]; then
 fi
 
 # Handle sub-commands.
+#
 case ${1-} in
 	upload|ingest|accession|dataset|restore)
 		# Ensure that S3_ACCESS_KEY is actually set before
 		# trying to use it, or bail out here.
+		#
 		: "${S3_ACCESS_KEY?Missing S3 access key}"
 		"$@"
 		;;
