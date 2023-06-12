@@ -10,7 +10,7 @@ myself=$0
 
 MQ_CREDENTIALS=${MQ_CREDENTIALS-test:test}		# --mq-credentials user:pass
 MQ_URL=${MQ_URL-http://localhost:15672}			# --mq-url URL
-MQ_EXCHANGE_PREFIX=${MQ_EXCHANGE_PREFIX-gdi/sda}	# --mq-exchange-prefix some/string
+MQ_EXCHANGE_PREFIX=${MQ_EXCHANGE_PREFIX-sda}		# --mq-exchange-prefix string
 MQ_QUEUE_PREFIX=${MQ_QUEUE_PREFIX-gdi}			# --mq-queue-prefix string
 
 SDA_CONFIG=${SDA_CONFIG-s3cmd.conf}			# --sda-config pathname
@@ -52,6 +52,7 @@ encrypt () {
 
 		# Skip if the unencrypted pathname is already in the
 		# list.
+		#
 		for dup do
 			if [ "$pathname" = "$dup" ]; then
 				continue 2
@@ -60,14 +61,17 @@ encrypt () {
 
 		# Remove the encrypted variant of the file, if it
 		# exists.
+		#
 		rm -f "$pathname.c4gh"
 
 		# Remember the unencrypted variant of the file for
 		# encryption later.
+		#
 		set -- "$@" "$pathname"
 	done
 
 	# If there are files to encrypt, encrypt them.
+	#
 	if [ "$#" -gt 0 ]; then
 		"$SDA_CLI" encrypt -key "$SDA_KEY" "$@"
 	fi
@@ -100,6 +104,7 @@ upload () {
 	shift "$(( OPTIND - 1 ))"
 
 	# Sanity check the target directory path.
+	#
 	case ${target_dir-} in
 		*..*)
 			echo 'Target path contains ".."' >&2
@@ -117,6 +122,7 @@ upload () {
 			# We do this in a subshell to isolate the
 			# changes made to the "target_dir" variable in
 			# the recursive call.
+			#
 			(
 				upload -t "${target_dir-.}/$(basename "$pathname")" \
 					"$pathname"/*
@@ -131,6 +137,7 @@ upload () {
 	# Ensure that our list of files to upload only consists of
 	# encrypted files that exists, and that this list does not
 	# contain duplicate entries.
+	#
 	for pathname do
 		shift
 		pathname=${pathname%.c4gh}.c4gh
@@ -150,6 +157,7 @@ upload () {
 
 	# If there are files to upload, upload them, possibly in a
 	# subdirectory of the user's S3 bucket.
+	#
 	if [ "$#" -gt 0 ]; then
 		"$SDA_CLI" upload \
 			-config "$SDA_CONFIG" \
@@ -164,9 +172,7 @@ curl () {
 	command curl \
 		--silent \
 		--show-error \
-		--request POST \
 		--user "$MQ_CREDENTIALS" \
-		--header "Content-Type: application/json" \
 		"$@" |
 	jq 'if type == "object" and has("error") then halt_error(1) else . end'
 }
@@ -178,7 +184,7 @@ publish () {
 
 	while IFS= read -r message; do
 		printf "%s\n" "$message" | base64 -d |
-		curl --data @- "$url_exchanges/publish"
+		curl --json @- "$url_exchanges/publish"
 	done >/dev/null
 }
 
@@ -187,12 +193,13 @@ map(
 	# Add an array of pathnames that would match this message.  This
 	# includes the pathname of each parent directory, leading up to
 	# and including the pathname of the file itself.
+	#
 	.tmp_paths = [
-		# The file's full pathname is part of a base64-encoded
-		# JSON blob.
+		# The file's full pathname is part of the message's
+		# payload (a JSON encoded object).
+		#
 		foreach (
 			.payload |
-			@base64d |
 			fromjson.filepath |
 			split("/")[]
 		) as $elem (
@@ -203,6 +210,7 @@ map(
 	] |
 	# The last element is the full file path and should not have a
 	# trailing slash.
+	#
 	.tmp_paths[-1] |= rtrimstr("/")
 ) |
 [
@@ -210,6 +218,7 @@ map(
 	# computed pathnames in the "tmp_paths" array in each message.
 	# Depending on the $yes boolean variable, extract or discard
 	# matching messages.
+	#
 	JOIN(
 		INDEX($ARGS.positional[]; .);
 		.[];
@@ -224,19 +233,34 @@ map(
 # Deduplicate the extracted messages on the full pathname of the file,
 # then remove the "tmp_paths" array from each message and base64 encode
 # them.
+#
 unique_by(.tmp_paths[-1]) |
 map( del(.tmp_paths) | @base64 )[]
 JQ_FILTER
 )
 
+rotate_dump_files () {
+	# Given a RabbitMQ queue name, this function rotates the queue
+	# dump file "<queue>-0.json" to "<queue>-1.json", etc. up to
+	# "<queue>-9.json".
+
+	queue=$1
+
+	for i in 8 7 6 5 4 3 2 1 0; do
+		if [ -f "$queue-$i.json" ]; then
+			mv "$queue-$i.json" "$queue-$(( i + 1 )).json"
+		fi
+	done
+}
+
 get_messages () {
-	# Retrieves the messages on the queue given by the 1st argument.
-	# The remaining arguments are pathnames that we filter the
-	# messages with (together with the access key from the S3
-	# configuration).  Any message that does not correspond to any
-	# of the given pathnames is requeued.  The remaining messages
-	# are individually base64-encoded and outputted on the standard
-	# output stream, one message per line of output.
+	# Retrieves the messages from the RabbitMQ queue given by the
+	# 1st argument.  The remaining arguments are pathnames that we
+	# filter the messages with (together with the access key from
+	# the S3 configuration).  Any message that does not correspond
+	# to any of the given pathnames is requeued.  The remaining
+	# messages are individually base64-encoded and outputted on the
+	# standard output stream, one message per line of output.
 	#
 	# Pathnames to files may be given with or without the trailing
 	# ".c4gh" filename suffix.
@@ -245,6 +269,11 @@ get_messages () {
 	# file paths in or below that directory will be returned.  If
 	# the given pathname is an empty string (""), then all messages
 	# are returned.
+	#
+	# Calling this function will additionally save the messages of
+	# the given queue to a file in the current directory called
+	# "<queue>-0.json".  If this file exists, it will be rotated to
+	# "<queue>-1.json" first, etc., up to "<queue>-9.json".
 
 	queue=$1
 	shift
@@ -272,31 +301,27 @@ get_messages () {
 		set -- "$@" "$pathname"
 	done
 
-	tmpfile=$(mktemp)
-	# shellcheck disable=SC2064
-	trap "rm '$tmpfile'" EXIT
+	dumpfile=./$queue-0.json
+	rotate_dump_files "$queue"
 
-	# Get upload messages and ACK them all without requeuing them.
+	# Get messages and ACK them all without requeuing them.
 	# This empties the queue.
 	#
-	curl --data '{"count":-1,"encoding":"base64","ackmode":"ack_requeue_false"}' \
-		"$url_queues/$queue/get" >"$tmpfile"
+	curl --json '{"count":-1,"encoding":"auto","ackmode":"ack_requeue_false"}' \
+		"$url_queues/$queue/get" >"$dumpfile"
 
 	# Requeue the messages that we're not interested in.
 	#
 	# Note that we only requeue unique messages, based on the file
 	# path stored in each message's payload.
 	#
-	jq -r --argjson yes false "$jq_filter" --args "$@" <"$tmpfile" |
+	jq -r --argjson yes false "$jq_filter" --args "$@" <"$dumpfile" |
 	publish
 
-	# Filter out (extract) the the set of messages that we want to
-	# keep.  This set does not contain any duplicated file paths.
+	# Filter out (extract) the set of messages that we want to keep.
+	# This set does not contain any duplicated file paths.
 	#
-	jq -r --argjson yes true "$jq_filter" --args "$@" <"$tmpfile"
-
-	rm -f "$tmpfile"
-	trap - EXIT
+	jq -r --argjson yes true "$jq_filter" --args "$@" <"$dumpfile"
 }
 
 get_filenames () {
@@ -306,13 +331,19 @@ get_filenames () {
 
 	queue=$1
 
-	curl --data \
-		'{"count":-1,"encoding":"base64","ackmode":"ack_requeue_true"}' \
+	curl --json \
+		'{"count":-1,"encoding":"auto","ackmode":"ack_requeue_true"}' \
 		"$url_queues/$queue/get" |
 	jq -r --arg access_key "$S3_ACCESS_KEY" '
-		map(.payload | @base64d | fromjson |
-		select(.filepath | startswith($access_key + "/")).filepath |
-			sub(".*?/"; "")) | unique[]'
+		map(
+			.payload |
+			fromjson |
+			select(
+				.filepath |
+				startswith($access_key + "/")
+			).filepath |
+			sub(".*?/"; "")
+		) | unique[]'
 }
 
 ingest () {
@@ -333,10 +364,10 @@ ingest () {
 	get_messages inbox "$@" |
 	jq -r -R '@base64d | fromjson |
 		.payload |= (
-			@base64d | fromjson |
+			fromjson |
 			.type = "ingest" |
 			del(.filesize,.operation) |
-			@base64
+			tojson
 		) |
 		.routing_key = "ingest" |
 		del(.payload_bytes) |
@@ -367,6 +398,7 @@ accession () {
 		shift
 
 		# The filename must not end in "/".
+		#
 		case $1 in
 			*/)
 				err=true
@@ -377,6 +409,7 @@ accession () {
 		shift 2
 
 		# The format string must contain exactly one "%".
+		#
 		case $accession_format in
 			*%*%*)
 				err=true
@@ -405,6 +438,7 @@ accession () {
 		# If "$accession_format" is set, then we should use that
 		# with "$counter" to calculate the new accession ID.
 		# Otherwise just use "$accession_id" directly.
+		#
 		if [ "${accession_format+set}" = set ]; then
 			# shellcheck disable=SC2059
 			accession_id=$( printf "$accession_format" "$counter" )
@@ -416,11 +450,11 @@ accession () {
 		jq -r -R --arg accession_id "$accession_id" '
 			@base64d | fromjson |
 			.payload |= (
-				@base64d | fromjson |
+				fromjson |
 				.type = "accession" |
 				.accession_id = $accession_id |
 				del(.filesize,.operation) |
-				@base64
+				tojson
 			) |
 			.routing_key = "accessionIDs" |
 			del(.payload_bytes) |
@@ -468,19 +502,64 @@ dataset () {
 				type: "mapping",
 				dataset_id: $dataset_id,
 				accession_ids: [
-					inputs |
-					@base64d | fromjson.payload |
-					@base64d | fromjson.accession_id
+					inputs | @base64d |
+					fromjson.payload |
+					fromjson.accession_id
 				]
-			} | @base64,
-			payload_encoding: "base64"
+			} | tojson,
+			payload_encoding: "string"
 		} | @base64' |
+	publish
+}
+
+restore () {
+	# Given a JSON dump file with a filename on the form
+	# "<queue>-<n>.json", this function merges the RabbitMQ messages
+	# in that file into the relevant RabbitMQ queue, removing
+	# duplicates based on the filepath in the message payload.  If
+	# there are duplicates, the message from the dump file is given
+	# precedence (on account of being seen first).
+
+	# We expect exactly one argument here; the name of the dump
+	# file.  That file must exist.
+	#
+	if [ "$#" -ne 1 ] || [ ! -f "$1" ]; then
+		usage restore >&2
+		return 1
+	fi
+
+	dumpfile=$1
+
+	queue=$(basename "$dumpfile")
+	queue=${queue%%-*}
+
+	# Verify queue name.
+	#
+	case $queue in
+		inbox|verified|completed)
+			# Do nothing.
+			;;
+		*)
+			printf 'Invalid queue name: %s\n' "$queue" >&2
+			exit 1
+	esac
+
+	# Combine the messages from the dump file with the messages from
+	# the queue, remove any duplicates based on the filepath in the
+	# messages' payload.  Then requeue the merged set of messages.
+	#
+	{
+		cat "$dumpfile" &&
+		curl --json '{"count":-1,"encoding":"auto","ackmode":"ack_requeue_false"}' \
+			"$url_queues/$queue/get"
+	} |
+	jq -r -s 'flatten(1) | unique_by(.payload | fromjson.filepath)[] | @base64' |
 	publish
 }
 
 usage () {
 	case ${1-} in
-		upload|ingest|accession|dataset)
+		upload|ingest|accession|dataset|restore)
 			"usage_$1"
 			;;
 		"")
@@ -526,10 +605,13 @@ usage_general () {
 	    $myself [...] dataset
 	    $myself help dataset
 
+	    $myself [...] restore '<queue>-<n>.json'
+	    $myself help restore
+
 	Environment variables:
 
 	    MQ_CREDENTIALS, MQ_URL, MQ_EXCHANGE_PREFIX, MQ_QUEUE_PREFIX,
-	    SDA_CLI, SDA_CONFIG, SDA_KEY
+	    SDA_CLI, SDA_CONFIG, SDA_KEY, S3_ACCESS_KEY
 
 	        These variables corresponds to the similarly named
 	        global options.  The command line options will override
@@ -707,7 +789,28 @@ usage_dataset () {
 	USAGE_DATASET
 }
 
+usage_restore () {
+	cat <<-USAGE_RESTORE
+	The "restore" sub-command is used for restoring the RabbitMQ
+	messages from one of the "<queue>-<n>.json" files that are
+	automatically created by this script.  The messages in the JSON
+	file are added to the messages in the corresponding RabbitMQ
+	queue, but if there are duplicates based on the filepath in
+	the messages' payload, the duplicate(s) from the queue will be
+	dropped.
+
+	Example usage:
+
+	    Restoring the messages from the "inbox-0.json" file (the
+	    most recent backup of the "inbox" queue):
+
+	    $myself restore inbox-0.json
+
+	USAGE_RESTORE
+}
+
 # Handle global options.
+#
 while true; do
 	case ${1-} in
 		--mq-credentials)
@@ -745,10 +848,11 @@ while true; do
 done
 
 url_api=$MQ_URL/api
-url_exchanges=$url_api/exchanges/$MQ_EXCHANGE_PREFIX
+url_exchanges=$url_api/exchanges/$MQ_QUEUE_PREFIX/$MQ_EXCHANGE_PREFIX
 url_queues=$url_api/queues/$MQ_QUEUE_PREFIX
 
 # Handle S3_ACCESS_KEY.
+#
 if [ "${S3_ACCESS_KEY+set}" != set ] && [ -f "$SDA_CONFIG" ]; then
 	S3_ACCESS_KEY=$(
 		sed	-e '/^access_key[[:blank:]]*=[[:blank:]]*/!d' \
@@ -758,11 +862,13 @@ if [ "${S3_ACCESS_KEY+set}" != set ] && [ -f "$SDA_CONFIG" ]; then
 fi
 
 # Handle sub-commands.
+#
 case ${1-} in
-	upload|ingest|accession|dataset)
+	upload|ingest|accession|dataset|restore)
 		# Ensure that S3_ACCESS_KEY is actually set before
 		# trying to use it, or bail out here.
-		: ${S3_ACCESS_KEY?Missing S3 access key}
+		#
+		: "${S3_ACCESS_KEY?Missing S3 access key}"
 		"$@"
 		;;
 	help)
