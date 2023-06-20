@@ -35,7 +35,7 @@ grant-types: ["authorization_code"]
 post-logout-redirect-uris: ["https://auth:8085/elixir/login"]
 ```
 
-Now that everything should be configured properly, return to the root folder of the `starter-kit-strorage-and-interfaces` and run:
+Now that everything should be configured properly, return to the root folder of the `starter-kit-storage-and-interfaces` and run:
 
 ```shell
 docker compose up -d
