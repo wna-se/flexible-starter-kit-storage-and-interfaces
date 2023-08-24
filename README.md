@@ -5,7 +5,7 @@ There exist two compose files at the root of the repo. Details on how to use the
 ## Starting the full stack with LS-AAI-mock
 
 To bootstrap the *full stack* of `storage-and-interfaces` services use
-the file `docker-compose.yml`. Note that this requires a running [`LS-AAI-mock`](https://github.com/GenomicDataInfrastructure/starter-kit-lsaai-mock) service. To configure the LS-AAI-mock service follow the instructions below.
+the file `docker-compose-example.yml`. Note that this requires a running [`LS-AAI-mock`](https://github.com/GenomicDataInfrastructure/starter-kit-lsaai-mock) service. To configure the LS-AAI-mock service follow the instructions below.
 
 Add the following line to `/etc/hosts` file:
 
