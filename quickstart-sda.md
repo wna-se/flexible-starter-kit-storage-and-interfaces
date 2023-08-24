@@ -30,7 +30,7 @@ docker compose up -d
 
 from the root of this repo. Please note that in the current form of the compose file, services are configured to work out-of-the-box with the [LS-AAI-mock](https://github.com/GenomicDataInfrastructure/starter-kit-lsaai-mock) service and some configuration of the latter is needed beforehand, see [here](./README.md##Starting-the-full-stack-with-LS-AAI-mock) for step-by-step instructions. The rationale behind this setup is to allow for a seamless transition to an environment with a *live* LS-AAI service as discussed briefly below.
 
-Configuration can be further customized by changing the [`config/config.yml`](./config/config.yml) file along with the `docker-compose.yml` itself. Please bear in mind that environment variables take precedence over the `config.yml` file.
+Configuration can be further customized by changing the files listed in `./.env` along with the `docker-compose.yml` itself. Please bear in mind that environment variables take precedence over the `config.yaml` file.
 
 Lastly, this repo includes a `docker-compose.demo.yml` file which deploys a standalone stack along with a demo of the sda services' functionality with test data. Details can be found [here](./README.md##Starting-the-stack-in-standalone-demo-mode).
 
