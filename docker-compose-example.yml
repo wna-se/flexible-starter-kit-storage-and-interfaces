@@ -153,8 +153,8 @@ services:
       - 8443:8443
     restart: always
     volumes:
-      - ./config/config.yaml:/config.yaml
-      - ./config/iss.json:/iss.json
+      - ${CONFIG_FILEPATH}:/config.yaml
+      - ${ISS_FILEPATH}:/iss.json
       - shared:/shared
 
   finalize:
@@ -181,7 +181,7 @@ services:
       - secure
     restart: always
     volumes:
-      - ./config/config.yaml:/config.yaml
+      - ${CONFIG_FILEPATH}:/config.yaml
 
   ingest:
     command: sda-ingest
@@ -208,7 +208,7 @@ services:
       - secure
     restart: always
     volumes:
-      - ./config/config.yaml:/config.yaml
+      - ${CONFIG_FILEPATH}:/config.yaml
       - shared:/shared
 
   mapper:
@@ -234,7 +234,7 @@ services:
       - secure
     restart: always
     volumes:
-      - ./config/config.yaml:/config.yaml
+      - ${CONFIG_FILEPATH}:/config.yaml
 
   verify:
     command: sda-verify
@@ -261,7 +261,7 @@ services:
       - secure
     restart: always
     volumes:
-      - ./config/config.yaml:/config.yaml
+      - ${CONFIG_FILEPATH}:/config.yaml
       - shared:/shared
 
   s3inbox:
@@ -293,7 +293,7 @@ services:
       - "8000:8000"
     restart: always
     volumes:
-      - ./config/config.yaml:/config.yaml
+      - ${CONFIG_FILEPATH}:/config.yaml
       - shared:/shared
 
 volumes:
