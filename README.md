@@ -2,10 +2,19 @@
 
 There exist two compose files at the root of the repo. Details on how to use them are provided below.
 
+**Note:** Before deploying the stack, please make sure that all configuration files are in place. The following files need to be created from their respective examples:
+
+```shell
+cp ./config/config.yaml.example ./config/config.yaml
+cp ./config/iss.json.example ./config/iss.json
+cp ./.env.example ./.env
+```
+no further editing to the above files is required for running the stack locally.
+
 ## Starting the full stack with LS-AAI-mock
 
 To bootstrap the *full stack* of `storage-and-interfaces` services use
-the file `docker-compose-example.yml`. Note that this requires a running [`LS-AAI-mock`](https://github.com/GenomicDataInfrastructure/starter-kit-lsaai-mock) service. To configure the LS-AAI-mock service follow the instructions below.
+the file `docker-compose.yml`. Note that this requires a running [`LS-AAI-mock`](https://github.com/GenomicDataInfrastructure/starter-kit-lsaai-mock) service. To configure the LS-AAI-mock service follow the instructions below.
 
 Add the following line to `/etc/hosts` file:
 
