@@ -1,7 +1,7 @@
 services:
   credentials:
     extends:
-      file: docker-compose-example.yml
+      file: docker-compose.yml
       service: credentials
 
   data_loader:
@@ -52,23 +52,23 @@ services:
 
   rabbitmq:
     extends:
-      file: docker-compose-example.yml
+      file: docker-compose.yml
       service: rabbitmq
 
   postgres:
     extends:
-      file: docker-compose-example.yml
+      file: docker-compose.yml
       service: postgres
 
   s3:
     extends:
-      file: docker-compose-example.yml
+      file: docker-compose.yml
       service: s3
 
   ## data ingest pipeline
   download:
     extends:
-      file: docker-compose-example.yml
+      file: docker-compose.yml
       service: download
     depends_on:
       oidc:
@@ -78,27 +78,27 @@ services:
 
   finalize:
     extends:
-      file: docker-compose-example.yml
+      file: docker-compose.yml
       service: finalize
 
   ingest:
     extends:
-      file: docker-compose-example.yml
+      file: docker-compose.yml
       service: ingest
 
   mapper:
     extends:
-      file: docker-compose-example.yml
+      file: docker-compose.yml
       service: mapper
 
   verify:
     extends:
-      file: docker-compose-example.yml
+      file: docker-compose.yml
       service: verify
 
   s3inbox:
     extends:
-      file: docker-compose-example.yml
+      file: docker-compose.yml
       service: s3inbox
     environment:
       - SERVER_JWTPUBKEYURL=

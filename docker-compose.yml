@@ -13,7 +13,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      - PGPASSWORD=rootpass
+      - PGPASSWORD=${credentials_PGPASSWORD}
     image: ubuntu:kinetic
     networks:
       - secure
@@ -28,19 +28,19 @@ services:
       credentials:
         condition: service_completed_successfully
     environment:
-      - ELIXIR_ID=XC56EL11xx
-      - ELIXIR_PROVIDER=http://aai-mock:8080/oidc/
-      - ELIXIR_SECRET=wHPVQaYXmdDHg
-      - ELIXIR_JWKPATH=jwk
-      - ELIXIR_REDIRECTURL=https://localhost:8085/elixir/login
-      - LOG_LEVEL=info
-      - S3INBOX=localhost:8000
-      - JWTISSUER=http://auth:8085
-      - JWTPRIVATEKEY=shared/keys/jwt.key
-      - JWTSIGNATUREALG=ES256
-      - SERVER_CERT=shared/cert/server.crt
-      - SERVER_KEY=shared/cert/auth.key
-      - RESIGNJWT=False
+      - ELIXIR_ID=${auth_ELIXIR_ID}
+      - ELIXIR_PROVIDER=${auth_ELIXIR_PROVIDER}
+      - ELIXIR_SECRET=${auth_ELIXIR_SECRET}
+      - ELIXIR_JWKPATH=${auth_ELIXIR_JWKPATH}
+      - ELIXIR_REDIRECTURL=${auth_ELIXIR_REDIRECTURL}
+      - LOG_LEVEL=${auth_LOG_LEVEL}
+      - S3INBOX=${auth_S3INBOX}
+      - JWTISSUER=${auth_JWTISSUER}
+      - JWTPRIVATEKEY=${auth_JWTPRIVATEKEY}
+      - JWTSIGNATUREALG=${auth_JWTSIGNATUREALG}
+      - SERVER_CERT=${auth_SERVER_CERT}
+      - SERVER_KEY=${auth_SERVER_KEY}
+      - RESIGNJWT=${auth_RESIGNJWT}
     volumes:
       - shared:/shared
     ports:
@@ -53,10 +53,10 @@ services:
   rabbitmq:
     container_name: rabbitmq
     environment:
-      - MQ_PASSWORD_HASH=C5ufXbYlww6ZBcEqDUB04YdUptO81s+ozI3Ll5GCHTnv8NAm
-      - MQ_USER=test
-      - MQ_VHOST=gdi
-      - NOTLS=true
+      - MQ_PASSWORD_HASH=${rabbitmq_MQ_PASSWORD_HASH}
+      - MQ_USER=${rabbitmq_MQ_USER}
+      - MQ_VHOST=${rabbitmq_MQ_VHOST}
+      - NOTLS=${rabbitmq_NOTLS}
     healthcheck:
       test:
         [
@@ -78,10 +78,10 @@ services:
   postgres:
     container_name: postgres
     environment:
-      - DB_LEGA_IN_PASSWORD=lega_in
-      - DB_LEGA_OUT_PASSWORD=.
-      - POSTGRES_PASSWORD=rootpass
-      - NOTLS=true
+      - DB_LEGA_IN_PASSWORD=${postgres_DB_LEGA_IN_PASSWORD}
+      - DB_LEGA_OUT_PASSWORD=${postgres_DB_LEGA_OUT_PASSWORD}
+      - POSTGRES_PASSWORD=${postgres_POSTGRES_PASSWORD}
+      - NOTLS=${postgres_NOTLS}
     healthcheck:
       test:
         [
@@ -106,9 +106,9 @@ services:
     command: server /data  --console-address ":9001"
     container_name: s3
     environment:
-      - MINIO_ROOT_USER=access
-      - MINIO_ROOT_PASSWORD=secretkey
-      - MINIO_SERVER_URL=http://127.0.0.1:9000
+      - MINIO_ROOT_USER=${s3_MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${s3_MINIO_ROOT_PASSWORD}
+      - MINIO_SERVER_URL=${s3_MINIO_SERVER_URL}
     healthcheck:
       test:
         [
@@ -142,8 +142,8 @@ services:
       s3:
         condition: service_healthy
     environment:
-      - DB_PASSWORD=download
-      - DB_USER=download
+      - DB_PASSWORD=${download_DB_PASSWORD}
+      - DB_USER=${download_DB_USER}
     image: ghcr.io/neicnordic/sda-download:v1.9.16
     networks:
       - public
@@ -170,12 +170,12 @@ services:
       s3:
         condition: service_healthy
     environment:
-      - BROKER_PASSWORD=finalize
-      - BROKER_QUEUE=accessionIDs
-      - BROKER_ROUTINGKEY=completed
-      - BROKER_USER=finalize
-      - DB_PASSWORD=finalize
-      - DB_USER=finalize
+      - BROKER_PASSWORD=${finalize_BROKER_PASSWORD}
+      - BROKER_QUEUE=${finalize_BROKER_QUEUE}
+      - BROKER_ROUTINGKEY=${finalize_BROKER_ROUTINGKEY}
+      - BROKER_USER=${finalize_BROKER_USER}
+      - DB_PASSWORD=${finalize_DB_PASSWORD}
+      - DB_USER=${finalize_DB_USER}
     image: ghcr.io/neicnordic/sda-pipeline:v0.4.7
     networks:
       - secure
@@ -196,13 +196,13 @@ services:
       s3:
         condition: service_healthy
     environment:
-      - BROKER_PASSWORD=ingest
-      - BROKER_QUEUE=ingest
-      - BROKER_ROUTINGKEY=archived
-      - BROKER_USER=ingest
-      - DB_PASSWORD=lega_in
-      - DB_USER=lega_in
-      - SCHEMA_TYPE=federated
+      - BROKER_PASSWORD=${ingest_BROKER_PASSWORD}
+      - BROKER_QUEUE=${ingest_BROKER_QUEUE}
+      - BROKER_ROUTINGKEY=${ingest_BROKER_ROUTINGKEY}
+      - BROKER_USER=${ingest_BROKER_USER}
+      - DB_PASSWORD=${ingest_DB_PASSWORD}
+      - DB_USER=${ingest_DB_USER}
+      - SCHEMA_TYPE=${ingest_SCHEMA_TYPE}
     image: ghcr.io/neicnordic/sda-pipeline:v0.4.7
     networks:
       - secure
@@ -224,11 +224,11 @@ services:
       s3:
         condition: service_healthy
     environment:
-      - BROKER_PASSWORD=mapper
-      - BROKER_QUEUE=mappings
-      - BROKER_USER=mapper
-      - DB_PASSWORD=mapper
-      - DB_USER=mapper
+      - BROKER_PASSWORD=${mapper_BROKER_PASSWORD}
+      - BROKER_QUEUE=${mapper_BROKER_QUEUE}
+      - BROKER_USER=${mapper_BROKER_USER}
+      - DB_PASSWORD=${mapper_DB_PASSWORD}
+      - DB_USER=${mapper_DB_USER}
     image: ghcr.io/neicnordic/sda-pipeline:v0.4.7
     networks:
       - secure
@@ -249,13 +249,13 @@ services:
       s3:
         condition: service_healthy
     environment:
-      - BROKER_PASSWORD=verify
-      - BROKER_QUEUE=archived
-      - BROKER_ROUTINGKEY=verified
-      - BROKER_USER=verify
-      - DB_PASSWORD=verify
-      - DB_USER=verify
-      - SCHEMA_TYPE=federated
+      - BROKER_PASSWORD=${verify_BROKER_PASSWORD}
+      - BROKER_QUEUE=${verify_BROKER_QUEUE}
+      - BROKER_ROUTINGKEY=${verify_BROKER_ROUTINGKEY}
+      - BROKER_USER=${verify_BROKER_USER}
+      - DB_PASSWORD=${verify_DB_PASSWORD}
+      - DB_USER=${verify_DB_USER}
+      - SCHEMA_TYPE=${verify_SCHEMA_TYPE}
     image: ghcr.io/neicnordic/sda-pipeline:v0.4.7
     networks:
       - secure
@@ -277,11 +277,11 @@ services:
       s3:
         condition: service_healthy
     environment:
-      - BROKER_PASSWORD=inbox
-      - BROKER_ROUTINGKEY=inbox
-      - BROKER_USER=inbox
-      - DB_PASSWORD=inbox
-      - DB_USER=inbox
+      - BROKER_PASSWORD=${s3inbox_BROKER_PASSWORD}
+      - BROKER_ROUTINGKEY=${s3inbox_BROKER_ROUTINGKEY}
+      - BROKER_USER=${s3inbox_BROKER_USER}
+      - DB_PASSWORD=${s3inbox_DB_PASSWORD}
+      - DB_USER=${s3inbox_DB_USER}
       - SERVER_CONFFILE=/config.yaml
       - SERVER_JWTPUBKEYURL=http://aai-mock:8080/oidc/jwk
     image: ghcr.io/neicnordic/sda-s3proxy:v0.2.19
