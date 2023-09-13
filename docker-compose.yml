@@ -14,7 +14,7 @@ services:
         condition: service_healthy
     environment:
       - PGPASSWORD=${credentials_PGPASSWORD}
-    image: ubuntu:kinetic
+    image: ubuntu:22.04
     networks:
       - secure
     volumes:
