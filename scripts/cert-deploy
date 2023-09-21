@@ -56,7 +56,7 @@ trap 'docker stop cert-deploy' EXIT
 tar -v -h -c -f - "$RENEWED_LINEAGE" |
 docker cp - cert-deploy:/shared
 
-docker exec cert-deploy chmod -R a+rx "/shared/$RENEWED_LINEAGE"
+docker exec cert-deploy chmod -R a+rx /shared/etc/letsencrypt
 
 docker stop cert-deploy
 trap - EXIT
