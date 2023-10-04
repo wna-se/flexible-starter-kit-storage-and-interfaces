@@ -265,9 +265,6 @@ get_messages () {
 	# messages are individually base64-encoded and outputted on the
 	# standard output stream, one message per line of output.
 	#
-	# Pathnames to files may be given with or without the trailing
-	# ".c4gh" filename suffix.
-	#
 	# If a given pathname ends with a slash, then all messages with
 	# file paths in or below that directory will be returned.  If
 	# the given pathname is an empty string (""), then all messages
@@ -288,18 +285,6 @@ get_messages () {
 		# pathname.
 		#
 		pathname=$S3_ACCESS_KEY/$pathname
-
-		# Add ".c4gh" to the end of the pathname if the pathname
-		# doesn't already have it and if it's not a directory
-		# path (ending in "/" or being an empty string).
-		#
-		case $pathname in
-			""|*/)
-				# Do nothing.
-				;;
-			*)
-				pathname=${pathname%.c4gh}.c4gh
-		esac
 
 		set -- "$@" "$pathname"
 	done
@@ -680,9 +665,6 @@ usage_ingest () {
 	The "ingest" sub-command is used for ingesting one or several
 	uploaded files.
 
-	Filenames do not have to be given with the trailing ".c4gh"
-	filename suffix.
-
 	If a directory path is specified with a trailing slash, all
 	files in or beneath that directory will be ingested recursively.
 	Specifying an empty string ("") as the pathname will have the
@@ -726,9 +708,6 @@ usage_accession () {
 	NOTE:   are unique etc.  It is up to the user to ensure that
 	NOTE:   the correct accession IDs are assigned.
 
-	Filenames do not have to be given with the trailing ".c4gh"
-	filename suffix.
-
 	Example usage:
 
 	    Listing the filenames currently in the "verified" queue
@@ -763,9 +742,6 @@ usage_dataset () {
 	cat <<-USAGE_DATASET
 	The "dataset" sub-command is used for associating one or several
 	files to a single dataset ID.
-
-	Filenames do not have to be given with the trailing ".c4gh"
-	filename suffix.
 
 	If a directory path is given with a slash at the end, all files
 	in or beneath that directory will be associated to the given
