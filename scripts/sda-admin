@@ -922,6 +922,10 @@ if [ "${S3_ACCESS_KEY+set}" != set ] && [ -f "$SDA_CONFIG" ]; then
 	)
 fi
 
+# Replace any @ with _ in the S3 access key.
+#
+S3_ACCESS_KEY=$(printf '%s\n' "$S3_ACCESS_KEY" | tr @ _)
+
 # Handle sub-commands.
 #
 case ${1-} in
