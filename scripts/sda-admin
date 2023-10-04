@@ -21,8 +21,9 @@ SDA_KEY=${SDA_KEY-crypt4gh_key.pub}			# --sda-key pathname
 # not set, the tool will be picked up from "$PATH" as usual.
 SDA_CLI=${SDA_CLI-sda-cli}	# --sda-cli pathname
 
-# There is also S3_ACCESS_KEY (--s3-access-key), but since its value
-# depend on the final value of "$SDA_CONFIG", we can't set it here.
+# There is also S3_ACCESS_KEY (--s3-access-key and its alias, --user),
+# but since its value depend on the final value of "$SDA_CONFIG", we
+# can't set it here.
 
 encrypt () {
 	# Encrypt the given files using "sda-cli".
@@ -638,6 +639,7 @@ usage_general () {
 	    --sda-config pathname	SDA S3 configuration file	Currently: $SDA_CONFIG
 	    --sda-key pathname		SDA CRYPT4GH public key file	Currently: $SDA_KEY
 	    --s3-access-key		Override S3 access key		Currently: ${S3_ACCESS_KEY-<unset>}
+	    --user			Alias for "--s3-access-key"
 
 	Specific synopsis:
 	    $myself help
@@ -893,7 +895,7 @@ while true; do
 		--sda-key)
 			SDA_KEY=$2
 			;;
-		--s3-access-key)
+		--s3-access-key|--user)
 			S3_ACCESS_KEY=$2
 			;;
 		-*)
