@@ -125,7 +125,7 @@ upload () {
 			# the recursive call.
 			#
 			(
-				upload -t "${target_dir-.}/$(basename "$pathname")" \
+				upload -t "${target_dir+$target_dir/}$(basename "$pathname")" \
 					"$pathname"/*
 			)
 			continue
