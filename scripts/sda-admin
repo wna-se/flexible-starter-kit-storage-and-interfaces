@@ -107,8 +107,12 @@ upload () {
 	# Sanity check the target directory path.
 	#
 	case ${target_dir-} in
-		*..*)
+		../*|*/../*|*/..)
 			echo 'Target path contains ".."' >&2
+			exit 1
+			;;
+		./*|*/./*|*/.)
+			echo 'Target path contains "."' >&2
 			exit 1
 			;;
 		/*)
