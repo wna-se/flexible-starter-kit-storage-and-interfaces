@@ -42,11 +42,14 @@ encrypt () {
 
 		if [ ! -f "$pathname" ] || [ ! -f "${pathname%.c4gh}" ]
 		then
-			# Skip if we are given something that doesn't
-			# exist or isn't a regular file, or if the
-			# variant of the filename with no ".c4gh" suffix
-			# does not exist or isn't a regular file.
-			continue
+			# Error out if we are given something that
+			# doesn't exist or isn't a regular file, or if
+			# the variant of the filename with no ".c4gh"
+			# suffix does not exist or isn't a regular file.
+
+			printf '%s: %s: No such file or directory\n' \
+				"$myself" "$pathname" >&2
+			return 1
 		fi
 
 		pathname=${pathname%.c4gh}
@@ -543,6 +546,14 @@ dataset () {
 	dataset_id=$1
 	shift
 
+	# Ensure that none of the filenames are empty.
+	for name do
+		if [ -z "$name" ]; then
+			printf '%s: empty filename\n' "$myself" >&2
+			return 1
+		fi
+	done
+
 	# Get the messages that we want from the "completed" queue, and
 	# assign the accession IDs from these to the given dataset ID.
 	#
@@ -824,8 +835,6 @@ usage_dataset () {
 
 	If a directory path is given with a slash at the end, all files
 	in or beneath that directory will be associated to the given
-	dataset ID.  Specifying an empty string ("") as the pathname
-	will have the effect of associating all files to the given
 	dataset ID.
 
 	Example usage:
