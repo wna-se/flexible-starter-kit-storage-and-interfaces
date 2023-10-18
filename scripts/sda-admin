@@ -22,7 +22,7 @@ SDA_KEY=${SDA_KEY-crypt4gh_key.pub}			# --sda-key pathname
 SDA_CLI=${SDA_CLI-sda-cli}	# --sda-cli pathname
 
 # There is also S3_ACCESS_KEY (--s3-access-key and its alias, --user),
-# but since its value depend on the final value of "$SDA_CONFIG", we
+# but since its value depends on the final value of "$SDA_CONFIG", we
 # can't set it here.
 
 encrypt () {
