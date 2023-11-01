@@ -5,8 +5,18 @@ apk -q --no-cache add curl jq
 
 pip -q install s3cmd
 
-for file in NA12878.bam NA12878_20k_b37.bam; do
+for file in NA12878.bam NA12878.bai NA12878_20k_b37.bam NA12878_20k_b37.bai; do
     curl -s -L -o $file "https://github.com/ga4gh/htsget-refserver/raw/main/data/gcp/gatk-test-data/wgs_bam/$file"
+
+    if [ "$file" = "NA12878.bai" ]; then
+        mv NA12878.bai NA12878.bam.bai
+        file="NA12878.bam.bai"
+    fi
+
+    if [ "$file" = "NA12878_20k_b37.bai" ]; then
+        mv NA12878_20k_b37.bai NA12878_20k_b37.bam.bai
+        file="NA12878_20k_b37.bam.bai"
+    fi
 
     yes | /shared/crypt4gh encrypt -p /shared/c4gh.pub.pem -f $file
     ENC_SHA=$(sha256sum "$file.c4gh" | cut -d' ' -f 1)
@@ -66,10 +76,10 @@ done
 ### wait for ingestion to complete
 echo "waiting for ingestion to complete"
 RETRY_TIMES=0
-until [ "$(curl -s -u test:test http://rabbitmq:15672/api/queues/gdi/verified | jq -r '."messages_ready"')" -eq 2 ]; do
+until [ "$(curl -s -u test:test http://rabbitmq:15672/api/queues/gdi/verified | jq -r '."messages_ready"')" -eq 4 ]; do
     echo "waiting for ingestion to complete"
     RETRY_TIMES=$((RETRY_TIMES + 1))
-    if [ "$RETRY_TIMES" -eq 30 ]; then
+    if [ "$RETRY_TIMES" -eq 40 ]; then
         echo "::error::Time out while waiting for ingestion to complete"
         exit 1
     fi
@@ -77,7 +87,7 @@ until [ "$(curl -s -u test:test http://rabbitmq:15672/api/queues/gdi/verified | 
 done
 
 I=0
-for file in NA12878.bam NA12878_20k_b37.bam; do
+for file in NA12878.bam NA12878.bam.bai NA12878_20k_b37.bam NA12878_20k_b37.bam.bai; do
     I=$((I+1))
     decrypted_checksums=$(
         curl -s -u test:test \
@@ -117,7 +127,9 @@ mappings=$(
     jq -c -n \
         '$ARGS.positional' \
         --args "EGAF74900000001" \
-        --args "EGAF74900000002"
+        --args "EGAF74900000002" \
+        --args "EGAF74900000003" \
+        --args "EGAF74900000004"
 )
 
 mapping_payload=$(
