@@ -5,7 +5,8 @@ apk -q --no-cache add curl jq
 
 pip -q install s3cmd
 
-for file in NA12878.bam NA12878.bai NA12878_20k_b37.bam NA12878_20k_b37.bai; do
+FILES="NA12878.bam NA12878.bai NA12878_20k_b37.bam NA12878_20k_b37.bai"
+for file in ${FILES}; do
     curl -s -L -o $file "https://github.com/ga4gh/htsget-refserver/raw/main/data/gcp/gatk-test-data/wgs_bam/$file"
 
     if [ "${file: -4}" = ".bai" ]; then
@@ -83,7 +84,10 @@ until [ "$(curl -s -u test:test http://rabbitmq:15672/api/queues/gdi/verified | 
 done
 
 I=0
-for file in NA12878.bam NA12878.bam.bai NA12878_20k_b37.bam NA12878_20k_b37.bam.bai; do
+for file in ${FILES}; do
+    if [ "${file: -4}" = ".bai" ]; then
+        file="$(basename "$file" .bai).bam.bai"
+    fi
     I=$((I+1))
     decrypted_checksums=$(
         curl -s -u test:test \
