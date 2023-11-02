@@ -8,14 +8,10 @@ pip -q install s3cmd
 for file in NA12878.bam NA12878.bai NA12878_20k_b37.bam NA12878_20k_b37.bai; do
     curl -s -L -o $file "https://github.com/ga4gh/htsget-refserver/raw/main/data/gcp/gatk-test-data/wgs_bam/$file"
 
-    if [ "$file" = "NA12878.bai" ]; then
-        mv NA12878.bai NA12878.bam.bai
-        file="NA12878.bam.bai"
-    fi
-
-    if [ "$file" = "NA12878_20k_b37.bai" ]; then
-        mv NA12878_20k_b37.bai NA12878_20k_b37.bam.bai
-        file="NA12878_20k_b37.bam.bai"
+    if [ "${file: -4}" = ".bai" ]; then
+        newname="$(basename "$file" .bai).bam.bai"
+        mv "$file" "$newname"
+        file="$newname"
     fi
 
     yes | /shared/crypt4gh encrypt -p /shared/c4gh.pub.pem -f $file
