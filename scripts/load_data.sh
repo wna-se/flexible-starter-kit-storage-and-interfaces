@@ -7,15 +7,16 @@ pip -q install s3cmd
 
 FILES="NA12878.bam NA12878.bai NA12878_20k_b37.bam NA12878_20k_b37.bai"
 for file in ${FILES}; do
-    curl -s -L -o $file "https://github.com/ga4gh/htsget-refserver/raw/main/data/gcp/gatk-test-data/wgs_bam/$file"
+    curl -s -L -o "$file" "https://github.com/ga4gh/htsget-refserver/raw/main/data/gcp/gatk-test-data/wgs_bam/$file"
 
-    if [ "${file: -4}" = ".bai" ]; then
+    case $file in (*.bai)
         newname="$(basename "$file" .bai).bam.bai"
         mv "$file" "$newname"
         file="$newname"
-    fi
+     ;;
+    esac
 
-    yes | /shared/crypt4gh encrypt -p /shared/c4gh.pub.pem -f $file
+    yes | /shared/crypt4gh encrypt -p /shared/c4gh.pub.pem -f "$file"
     ENC_SHA=$(sha256sum "$file.c4gh" | cut -d' ' -f 1)
     ENC_MD5=$(md5sum "$file.c4gh" | cut -d' ' -f 1)
     s3cmd -q -c /shared/s3cfg put "$file.c4gh" s3://dummy_gdi.eu/"$file.c4gh"
@@ -85,9 +86,10 @@ done
 
 I=0
 for file in ${FILES}; do
-    if [ "${file: -4}" = ".bai" ]; then
+    case $file in (*.bai)
         file="$(basename "$file" .bai).bam.bai"
-    fi
+     ;;
+    esac
     I=$((I+1))
     decrypted_checksums=$(
         curl -s -u test:test \
