@@ -20,6 +20,7 @@ services:
     volumes:
       - ./scripts:/scripts
       - shared:/shared
+      - cacert:/cacert
 
   auth:
     container_name: auth
@@ -285,6 +286,7 @@ services:
       - shared:/shared
 
 volumes:
+  cacert:
   pgdata:
   shared:
   s3data:

@@ -18,6 +18,7 @@ services:
     volumes:
       - ./scripts/load_data.sh:/load_data.sh
       - shared:/shared
+      - cacert:/cacert
 
   ### OIDC (LS-AAI in  a box)
   oidc:
@@ -26,16 +27,14 @@ services:
       - -c
       - |
         pip install --upgrade pip
-        pip install aiohttp Authlib
-        python -u /oidc.py &
-        echo "$$!" >/tmp/server.pid
-        wait
+        pip install aiohttp Authlib joserfc requests
+        python -u /oidc.py
     container_name: oidc
     depends_on:
       credentials:
         condition: service_completed_successfully
     healthcheck:
-      test: [ "CMD", "sh", "-c", "kill -0 $$(cat /tmp/server.pid)" ]
+      test: ["CMD", "python3", "-c", 'import requests; print(requests.get(url = "https://localhost:8080/jwk", verify="/shared/cert/ca.crt").text)']
       interval: 5s
       timeout: 10s
       retries: 20
@@ -101,9 +100,12 @@ services:
       file: docker-compose.yml
       service: s3inbox
     environment:
-      - SERVER_JWTPUBKEYURL=
+      - SERVER_JWTPUBKEYURL=https://oidc:8080/jwk
+    volumes:
+    - cacert:/etc/ssl/certs/
 
 volumes:
+  cacert:
   pgdata:
   shared:
   s3data:
