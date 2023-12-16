@@ -8,17 +8,17 @@ The storage and interfaces software stack for the GDI-starter-kit consists of th
 
 | Component     | Description |
 |---------------|------|
-| broker        | RabbitMQ based message broker, [SDA-MQ](https://github.com/neicnordic/sda-mq). |
-| database      | PostgreSQL database, [SDA-DB](https://github.com/neicnordic/sda-db). |
+| broker        | RabbitMQ based message broker, [SDA-MQ](https://github.com/neicnordic/sensitive-data-archive/tree/main/rabbitmq). |
+| database      | PostgreSQL database, [SDA-DB](https://github.com/neicnordic/sensitive-data-archive/tree/main/postgresql). |
 | storage       | S3 object store, demo uses Minio S3. |
-| auth     | OpenID Connect relaying party and authentication service, [SDA-auth](https://github.com/neicnordic/sda-auth). |
-| s3inbox       | Proxy inbox to the S3 backend store, [SDA-S3Proxy](https://github.com/neicnordic/sda-s3proxy). |
-| download      | Data out solution for downloading files from the SDA, [SDA-download](https://github.com/neicnordic/sda-download). |
-| SDA-pipeline     | The ingestion pipeline of the SDA, [SDA-pipeline](https://github.com/neicnordic/sda-pipeline). This comprises of the following core components: `ingest`, `verify`, `finalize` and `mapper`.|
+| auth     | OpenID Connect relaying party and authentication service, [SDA-auth](https://github.com/neicnordic/sensitive-data-archive/tree/main/sda-auth). |
+| s3inbox       | Proxy inbox to the S3 backend store, [SDA-S3Inbox](https://github.com/neicnordic/sensitive-data-archive/tree/main/sda). |
+| download      | Data out solution for downloading files from the SDA, [SDA-download](https://github.com/neicnordic/sensitive-data-archive/tree/main/sda-download). |
+| SDA-pipeline     | The ingestion pipeline of the SDA, [SDA-pipeline](https://github.com/neicnordic/sensitive-data-archive/tree/main/sda). This comprises of the following core components: `ingest`, `verify`, `finalize` and `mapper`.|
 
-Detailed documentation on the `sda-pipeline` can be found at: https://neicnordic.github.io/sda-pipeline/pkg/sda-pipeline/.
+Detailed documentation on the `sda-pipeline` can be found at: [https://neic-sda.readthedocs.io/en/latest/services/pipeline)](https://neic-sda.readthedocs.io/en/latest/services/pipeline).
 
-NeIC Sensitive Data Archive documentation can be found at: https://neic-sda.readthedocs.io/en/latest/ .
+NeIC Sensitive Data Archive documentation can be found at: [https://neic-sda.readthedocs.io/en/latest/](https://neic-sda.readthedocs.io/en/latest/) .
 
 ## Deployment
 
@@ -29,6 +29,7 @@ cp ./config/config.yaml.example ./config/config.yaml
 cp ./config/iss.json.example ./config/iss.json
 cp ./.env.example ./.env
 ```
+
 no further editing to the above files is required for running the stack locally.
 
 The storage and interfaces stack can be deployed with the use of the provided `docker-compose.yml` file by running
@@ -53,7 +54,7 @@ To interact with SDA services, users need to provide [JSON Web Token](https://jw
 
 ### sda-auth
 
-Assuming users with a valid LS-AAI ID, they can obtain a JWT by logging in to the `sda-auth` service. This can be done by navigating to the `sda-auth` service URL (e.g. https://localhost:8085 for a local deployment or https://login.gdi.nbis.se for a live one) and clicking on the `Login` button. This will redirect the user to the LS-AAI login page where they can enter their credentials. Once authenticated, the user will be redirected back to the `sda-auth` service and a JWT will be issued. This is an access token which can be copied from the `sda-auth`'s page and used to interact with the SDA services like e.g. for authorizing calls to `sda-download`'s API as described in the [Downloading data](#downloading-data) section below.
+Assuming users with a valid LS-AAI ID, they can obtain a JWT by logging in to the `sda-auth` service. This can be done by navigating to the `sda-auth` service URL (e.g. `https://localhost:8085` for a local deployment or `https://login.gdi.nbis.se` for a live one) and clicking on the `Login` button. This will redirect the user to the LS-AAI login page where they can enter their credentials. Once authenticated, the user will be redirected back to the `sda-auth` service and a JWT will be issued. This is an access token which can be copied from the `sda-auth`'s page and used to interact with the SDA services like e.g. for authorizing calls to `sda-download`'s API as described in the [Downloading data](#downloading-data) section below.
 
 From `sda-auth`'s page users can also download a configuration file for accessing the `s3inbox` service. This `s3cmd.conf` file containes the aforementioned access token along with other necessary information and it is described in detail in the [Uploading data](#uploading-data) section below.
 
@@ -122,7 +123,7 @@ where the acces token has been truncated for brevity. Please note that the optio
 
 ### The sda-cli tool
 
-Instead of the tools above, users are **encouraged** to use [`sda-cli`](https://github.com/NBISweden/sda-cli), which is a tool specifically developed to perform all common SDA user-related tasks in a convenient and unified manner. It is recommended to use precompiled executables for `sda-cli` which can be found at https://github.com/NBISweden/sda-cli/releases
+Instead of the tools above, users are **encouraged** to use [`sda-cli`](https://github.com/NBISweden/sda-cli), which is a tool specifically developed to perform all common SDA user-related tasks in a convenient and unified manner. It is recommended to use precompiled executables for `sda-cli` which can be found at [https://github.com/NBISweden/sda-cli/releases](https://github.com/NBISweden/sda-cli/releases)
 
 To start using the tool run:
 
@@ -149,6 +150,7 @@ To start using the tool run:
 ```shell
 ./sda-cli list -config s3cmd.conf
 ```
+
 For detailed documentation on the tool's capabilities and usage please refer [here](https://github.com/NBISweden/sda-cli#usage).
 
 ### Downloading data
@@ -197,7 +199,7 @@ Fetch the archive's `c4gh` public key (assuming shell access to the host machine
 docker cp ingest:/shared/c4gh.pub.pem .
 ```
 
-**Encrypt and upload**
+#### Encrypt and upload
 
 To encrypt and upload `test_file` to the s3inbox, first get a token and prepare a `s3cmd` configuration file as described in the section [Uploading data](#uploading-data) above. Then run the following:
 
@@ -211,7 +213,7 @@ One can verify that the encrypted file is uploaded in the archive's inbox by the
 sda-cli list --config s3cmd.conf
 ```
 
-**Ingesting**
+#### Ingesting
 
 To list the filenames currently in the "inbox" queue waiting to be ingested run:
 
@@ -224,9 +226,10 @@ If `test_file.c4gh` is in the returned list, run:
 ```shell
 ./sda-admin ingest test_file
 ```
+
 to trigger ingestion of the file.
 
-**Adding accession IDs**
+#### Adding accession IDs
 
 In brief, accesion IDs are unique identifiers that are assigned to files in order to be able to reference them in the future. Check that the file has been ingested by listing the filenames currently in the "verified" queue waiting to have accession IDs assigned to them:
 
@@ -242,7 +245,7 @@ If `test_file.c4gh` is in the returned list, we can proceed with accession:
 
 where `MYID001` is the `accession ID` we wish to assign to the file.
 
-**Mapping to datasets**
+#### Mapping to datasets
 
 Check that the file got an accession ID by listing the filenames currently in the "completed" queue waiting to be associated with a dataset ID:
 
@@ -276,6 +279,6 @@ Note that when applicable periodic `healthchecks` are in place to ensure that se
 
 ### Working with RabbitMQ
 
-As stated, we use [RabbitMQ](https://www.rabbitmq.com/) as our message broker between different services in this stack. Monitoring the status of the broker service can most conveniently be done via the web interface, which is accessible at http://localhost:15672/ (use `https` if TLS is enabled). By default, `user:password` credentials with values `test:test` are created upon deployment and can be changed by editing the `docker-compose.yml` file. There are two ways to create a password hash for RabbitMQ as described [here](https://www.rabbitmq.com/passwords.html#computing-password-hash)
+As stated, we use [RabbitMQ](https://www.rabbitmq.com/) as our message broker between different services in this stack. Monitoring the status of the broker service can most conveniently be done via the web interface, which is accessible at `http://localhost:15672/` (use `https` if TLS is enabled). By default, `user:password` credentials with values `test:test` are created upon deployment and can be changed by editing the `docker-compose.yml` file. There are two ways to create a password hash for RabbitMQ as described [here](https://www.rabbitmq.com/passwords.html#computing-password-hash)
 
 Broker messages are most conveniently generated by `scripts/sda-admin` as described above. If for some reason one wants to send MQ messages manually instead, there exist step-by-step examples [here](https://github.com/neicnordic/sda-pipeline/tree/master/dev_utils#json-formatted-messages).
