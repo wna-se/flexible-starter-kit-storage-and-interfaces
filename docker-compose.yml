@@ -23,7 +23,7 @@ services:
 
   auth:
     container_name: auth
-    image: ghcr.io/neicnordic/sda-auth:v0.7.7
+    image: ghcr.io/neicnordic/sensitive-data-archive:v0.2.88-auth
     depends_on:
       credentials:
         condition: service_completed_successfully
@@ -34,13 +34,9 @@ services:
       - ELIXIR_JWKPATH=${auth_ELIXIR_JWKPATH}
       - ELIXIR_REDIRECTURL=${auth_ELIXIR_REDIRECTURL}
       - LOG_LEVEL=${auth_LOG_LEVEL}
+      - PUBLICFILE=/shared/c4gh.pub.pem
+      - RESIGNJWT=false
       - S3INBOX=${auth_S3INBOX}
-      - JWTISSUER=${auth_JWTISSUER}
-      - JWTPRIVATEKEY=${auth_JWTPRIVATEKEY}
-      - JWTSIGNATUREALG=${auth_JWTSIGNATUREALG}
-      - SERVER_CERT=${auth_SERVER_CERT}
-      - SERVER_KEY=${auth_SERVER_KEY}
-      - RESIGNJWT=${auth_RESIGNJWT}
     volumes:
       - shared:/shared
     ports:
@@ -53,10 +49,8 @@ services:
   rabbitmq:
     container_name: rabbitmq
     environment:
-      - MQ_PASSWORD_HASH=${rabbitmq_MQ_PASSWORD_HASH}
-      - MQ_USER=${rabbitmq_MQ_USER}
-      - MQ_VHOST=${rabbitmq_MQ_VHOST}
-      - NOTLS=${rabbitmq_NOTLS}
+      - RABBITMQ_DEFAULT_PASS=${rabbitmq_MQ_PASSWORD}
+      - RABBITMQ_DEFAULT_USER=${rabbitmq_MQ_USER}
     healthcheck:
       test:
         [
@@ -68,7 +62,7 @@ services:
       interval: 5s
       timeout: 20s
       retries: 20
-    image: ghcr.io/neicnordic/sda-mq:v1.4.28
+    image: ghcr.io/neicnordic/sensitive-data-archive:v0.2.88-rabbitmq
     networks:
       - secure
     ports:
@@ -78,10 +72,7 @@ services:
   postgres:
     container_name: postgres
     environment:
-      - DB_LEGA_IN_PASSWORD=${postgres_DB_LEGA_IN_PASSWORD}
-      - DB_LEGA_OUT_PASSWORD=${postgres_DB_LEGA_OUT_PASSWORD}
       - POSTGRES_PASSWORD=${postgres_POSTGRES_PASSWORD}
-      - NOTLS=${postgres_NOTLS}
     healthcheck:
       test:
         [
@@ -95,7 +86,7 @@ services:
       interval: 5s
       timeout: 20s
       retries: 20
-    image: ghcr.io/neicnordic/sda-db:v2.1.5
+    image: ghcr.io/neicnordic/sensitive-data-archive:v0.2.88-postgres
     networks:
       - secure
     restart: always
@@ -144,7 +135,7 @@ services:
     environment:
       - DB_PASSWORD=${download_DB_PASSWORD}
       - DB_USER=${download_DB_USER}
-    image: ghcr.io/neicnordic/sda-download:v1.9.16
+    image: ghcr.io/neicnordic/sensitive-data-archive:v0.2.88-download
     networks:
       - public
       - secure
@@ -176,7 +167,7 @@ services:
       - BROKER_USER=${finalize_BROKER_USER}
       - DB_PASSWORD=${finalize_DB_PASSWORD}
       - DB_USER=${finalize_DB_USER}
-    image: ghcr.io/neicnordic/sda-pipeline:v0.4.7
+    image: ghcr.io/neicnordic/sensitive-data-archive:v0.2.88
     networks:
       - secure
     restart: always
@@ -202,8 +193,7 @@ services:
       - BROKER_USER=${ingest_BROKER_USER}
       - DB_PASSWORD=${ingest_DB_PASSWORD}
       - DB_USER=${ingest_DB_USER}
-      - SCHEMA_TYPE=${ingest_SCHEMA_TYPE}
-    image: ghcr.io/neicnordic/sda-pipeline:v0.4.7
+    image: ghcr.io/neicnordic/sensitive-data-archive:v0.2.88
     networks:
       - secure
     restart: always
@@ -229,7 +219,7 @@ services:
       - BROKER_USER=${mapper_BROKER_USER}
       - DB_PASSWORD=${mapper_DB_PASSWORD}
       - DB_USER=${mapper_DB_USER}
-    image: ghcr.io/neicnordic/sda-pipeline:v0.4.7
+    image: ghcr.io/neicnordic/sensitive-data-archive:v0.2.88
     networks:
       - secure
     restart: always
@@ -256,7 +246,7 @@ services:
       - DB_PASSWORD=${verify_DB_PASSWORD}
       - DB_USER=${verify_DB_USER}
       - SCHEMA_TYPE=${verify_SCHEMA_TYPE}
-    image: ghcr.io/neicnordic/sda-pipeline:v0.4.7
+    image: ghcr.io/neicnordic/sensitive-data-archive:v0.2.88
     networks:
       - secure
     restart: always
@@ -282,9 +272,7 @@ services:
       - BROKER_USER=${s3inbox_BROKER_USER}
       - DB_PASSWORD=${s3inbox_DB_PASSWORD}
       - DB_USER=${s3inbox_DB_USER}
-      - SERVER_CONFFILE=/config.yaml
-      - SERVER_JWTPUBKEYURL=http://aai-mock:8080/oidc/jwk
-    image: ghcr.io/neicnordic/sda-s3proxy:v0.2.19
+    image: ghcr.io/neicnordic/sensitive-data-archive:v0.2.88
     networks:
       - public
       - secure
