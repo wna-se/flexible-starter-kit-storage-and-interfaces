@@ -1,0 +1,34 @@
+name: Run Demo
+
+on:
+  pull_request:
+
+jobs:
+  demo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out code
+        uses : actions/checkout@v4
+
+      - name: Run compose demo
+        run: |
+          cp config/config.yaml.example config/config.yaml
+          cp config/iss.json.example config/iss.json
+          cp .env.example .env
+          docker compose -f docker-compose-demo.yml up -d
+          until [ "$(docker inspect data_loader  --format='{{.State.Status}}')" = "exited" ]; do
+            echo "waithg for data_loader to finish"
+            sleep 5
+          done
+          token=$(curl -s -k https://localhost:8080/tokens | jq -r '.[0]')
+          if [ "$(curl -s -H "Authorization: Bearer $token" http://localhost:8443/metadata/datasets | jq -r '.[]')" != "DATASET0001" ]; then
+            echo "demo failed"
+            exit 1
+          fi
+          if [ "$(curl -s -H "Authorization: Bearer $token" http://localhost:8443/metadata/datasets/DATASET0001/files | jq length)" -ne 4 ]; then
+            echo "demo failed"
+            exit 1
+          fi
+          echo "demo completed sucessfully"
+        shell: bash
