@@ -14,7 +14,7 @@ services:
         condition: service_healthy
     environment:
       - PGPASSWORD=${credentials_PGPASSWORD}
-    image: ubuntu:22.04
+    image: python:3.10-slim
     networks:
       - secure
     volumes:
