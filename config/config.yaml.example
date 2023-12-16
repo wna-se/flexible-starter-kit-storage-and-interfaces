@@ -11,20 +11,12 @@ archive:
   bucket: "archive"
   chunksize: 32
 
-aws:
-  url: "http://s3:9000"
-  readypath: "/minio/health/ready"
-  accessKey: "access"
-  secretKey: "secretkey"
-  bucket: "inbox"
-  region: "us-east-1"
-
 broker:
   host: "rabbitmq"
   port: 5672
   user: ""
   password: ""
-  vhost: "gdi"
+  vhost: "sda"
   queue: ""
   exchange: "sda"
   routingKey: ""
@@ -34,14 +26,13 @@ broker:
 c4gh:
   passphrase: "c4ghpass"
   filepath: "/shared/c4gh.sec.pem"
-  backupPubKey: "/shared/c4gh.pub.pem"
 
 db:
   host: "postgres"
   port: 5432
   user: ""
   password: ""
-  database: "lega"
+  database: "sda"
   sslmode: "disable"
 
 inbox:
@@ -54,7 +45,7 @@ inbox:
   chunksize: 32
 
 log:
-  level: "debug"
+  level: "info"
   format: "json"
 
 oidc:
@@ -69,8 +60,7 @@ schema:
   type: isolated
 
 server:
-  jwtpubkeypath: "/shared/keys/pub/"
-  jwtpubkeyurl: ""
+  jwtpubkeyurl: "http://aai-mock:8080/oidc/jwk"
 
 session:
   # session key expiration time in seconds
