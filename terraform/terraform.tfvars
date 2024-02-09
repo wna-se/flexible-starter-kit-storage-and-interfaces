@@ -3,12 +3,12 @@ db-backup-c4gh-public-key-path = ""
 kubeconfig-path                = ""
 
 ### container tags
-sda-services-backup-version = "v0.1.29"
+sda-services-backup-version = "v0.1.34"
 
 ### helm chart versions
-sda-db-version  = "0.8.0"
-sda-mq-version  = "0.7.0"
-sda-svc-version = "0.22.0"
+sda-db-version  = "0.8.8"
+sda-mq-version  = "0.7.9"
+sda-svc-version = "0.23.4"
 
 ### ingress
 ### ingress-base is the root domain, all exposed services will be reachable as sub domains.
