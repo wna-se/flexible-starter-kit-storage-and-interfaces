@@ -38,13 +38,12 @@ services:
       - PUBLICFILE=/shared/c4gh.pub.pem
       - RESIGNJWT=false
       - S3INBOX=${auth_S3INBOX}
+    extra_hosts:
+      - "dockerhost:host-gateway"
     volumes:
       - shared:/shared
     ports:
       - 8085:8080
-    networks:
-      - public
-      - my-app-network
     restart: always
 
   rabbitmq:
@@ -136,11 +135,12 @@ services:
     environment:
       - DB_PASSWORD=${download_DB_PASSWORD}
       - DB_USER=${download_DB_USER}
+    extra_hosts:
+      - "dockerhost:host-gateway"
     image: ghcr.io/neicnordic/sensitive-data-archive:v0.2.88-download
     networks:
       - public
       - secure
-      - my-app-network
     ports:
       - 8443:8443
     restart: always
@@ -273,11 +273,12 @@ services:
       - BROKER_USER=${s3inbox_BROKER_USER}
       - DB_PASSWORD=${s3inbox_DB_PASSWORD}
       - DB_USER=${s3inbox_DB_USER}
+    extra_hosts:
+      - "dockerhost:host-gateway"
     image: ghcr.io/neicnordic/sensitive-data-archive:v0.2.88
     networks:
       - public
       - secure
-      - my-app-network
     ports:
       - "8000:8000"
     restart: always
@@ -294,6 +295,3 @@ volumes:
 networks:
   public:
   secure:
-  # required for allowing auth to connect to ls-aai-mock
-  my-app-network:
-    name: my-app-network

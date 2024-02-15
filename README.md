@@ -17,10 +17,10 @@ no further editing to the above files is required for running the stack locally.
 To bootstrap the *full stack* of `storage-and-interfaces` services use
 the file `docker-compose.yml`. Note that this requires a running [`LS-AAI-mock`](https://github.com/GenomicDataInfrastructure/starter-kit-lsaai-mock) service. To configure the LS-AAI-mock service follow the instructions below.
 
-Run the following command to add the `aai-mock` to the `/etc/hosts` file:
+Run the following command to add the `dockerhost` to the `/etc/hosts` file:
 
 ```shell
-sudo sh -c "echo '127.0.0.1 aai-mock' >>/etc/hosts"
+sudo sh -c "echo '127.0.0.1 dockerhost' >>/etc/hosts"
 ```
 
 First clone the [startet-kit-lsaai-mock](https://github.com/GenomicDataInfrastructure/starter-kit-lsaai-mock) repo.
@@ -28,8 +28,8 @@ First clone the [startet-kit-lsaai-mock](https://github.com/GenomicDataInfrastru
 Under its root folder, change the first two lines of the file `configuration/aai-mock/application.properties` to:
 
 ```conf
-main.oidc.issuer.url=http://aai-mock:8080/oidc/
-web.baseURL=https://aai-mock:8080/oidc
+main.oidc.issuer.url=http://dockerhost:8080/oidc/
+web.baseURL=https://dockerhost:8080/oidc
 ```
 
 and then add the `sda-auth` client by creating a file `configuration/aai-mock/clients/client1.yaml` with the following contents:
