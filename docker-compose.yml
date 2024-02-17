@@ -39,7 +39,7 @@ services:
       - RESIGNJWT=false
       - S3INBOX=${auth_S3INBOX}
     extra_hosts:
-      - "dockerhost:host-gateway"
+      - "${DOCKERHOST:-dockerhost}:host-gateway"
     volumes:
       - shared:/shared
     ports:
@@ -136,7 +136,7 @@ services:
       - DB_PASSWORD=${download_DB_PASSWORD}
       - DB_USER=${download_DB_USER}
     extra_hosts:
-      - "dockerhost:host-gateway"
+      - "${DOCKERHOST:-dockerhost}:host-gateway"
     image: ghcr.io/neicnordic/sensitive-data-archive:v0.2.88-download
     networks:
       - public
@@ -274,7 +274,7 @@ services:
       - DB_PASSWORD=${s3inbox_DB_PASSWORD}
       - DB_USER=${s3inbox_DB_USER}
     extra_hosts:
-      - "dockerhost:host-gateway"
+      - "${DOCKERHOST:-dockerhost}:host-gateway"
     image: ghcr.io/neicnordic/sensitive-data-archive:v0.2.88
     networks:
       - public

@@ -17,7 +17,7 @@ no further editing to the above files is required for running the stack locally.
 To bootstrap the *full stack* of `storage-and-interfaces` services use
 the file `docker-compose.yml`. Note that this requires a running [`LS-AAI-mock`](https://github.com/GenomicDataInfrastructure/starter-kit-lsaai-mock) service. To configure the LS-AAI-mock service follow the instructions below.
 
-Run the following command to add the `dockerhost` to the `/etc/hosts` file:
+Export the variable `DOCKERHOST` with either `$HOSTNAME` or `localhost` unless you want to edit the hosts file as shown below.
 
 ```shell
 sudo sh -c "echo '127.0.0.1 dockerhost' >>/etc/hosts"
@@ -28,8 +28,8 @@ First clone the [startet-kit-lsaai-mock](https://github.com/GenomicDataInfrastru
 Under its root folder, change the first two lines of the file `configuration/aai-mock/application.properties` to:
 
 ```conf
-main.oidc.issuer.url=http://dockerhost:8080/oidc/
-web.baseURL=https://dockerhost:8080/oidc
+main.oidc.issuer.url=http://${DOCKERHOST:-dockerhost}:8080/oidc/
+web.baseURL=https://${DOCKERHOST:-dockerhost}:8080/oidc
 ```
 
 and then add the `sda-auth` client by creating a file `configuration/aai-mock/clients/client1.yaml` with the following contents:
@@ -38,11 +38,11 @@ and then add the `sda-auth` client by creating a file `configuration/aai-mock/cl
 client-name: "auth"
 client-id: "XC56EL11xx"
 client-secret: "wHPVQaYXmdDHg"
-redirect-uris: ["https://localhost:8085/elixir/login"]
+redirect-uris: ["https://${DOCKERHOST:-dockerhost}:8085/elixir/login"]
 token-endpoint-auth-method: "client_secret_basic"
 scope: ["openid", "profile", "email", "ga4gh_passport_v1", "eduperson_entitlement"]
 grant-types: ["authorization_code"]
-post-logout-redirect-uris: ["https://auth:8085/elixir/login"]
+post-logout-redirect-uris: ["https://${DOCKERHOST:-dockerhost}:8085/elixir/login"]
 ```
 
 Now that everything should be configured properly, return to the root folder of the `starter-kit-lsaai-mock` and run:
