@@ -51,16 +51,11 @@ log:
 oidc:
   # oidc configuration API must have values for "userinfo_endpoint" and "jwks_uri"
   cacert: "/shared/cert/ca.crt"
-  configuration:
-    url: "http://aai-mock:8080/oidc/.well-known/openid-configuration"
   trusted:
     iss: "/iss.json"
 
 schema:
   type: isolated
-
-server:
-  jwtpubkeyurl: "http://aai-mock:8080/oidc/jwk"
 
 session:
   # session key expiration time in seconds

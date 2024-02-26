@@ -28,8 +28,8 @@ First clone the [startet-kit-lsaai-mock](https://github.com/GenomicDataInfrastru
 Under its root folder, change the first two lines of the file `configuration/aai-mock/application.properties` to:
 
 ```conf
-main.oidc.issuer.url=http://${DOCKERHOST:-dockerhost}:8080/oidc/
-web.baseURL=https://${DOCKERHOST:-dockerhost}:8080/oidc
+main.oidc.issuer.url=http://${DOCKERHOST}:8080/oidc/
+web.baseURL=https://${DOCKERHOST}:8080/oidc
 ```
 
 and then add the `sda-auth` client by creating a file `configuration/aai-mock/clients/client1.yaml` with the following contents:
@@ -38,11 +38,11 @@ and then add the `sda-auth` client by creating a file `configuration/aai-mock/cl
 client-name: "auth"
 client-id: "XC56EL11xx"
 client-secret: "wHPVQaYXmdDHg"
-redirect-uris: ["https://${DOCKERHOST:-dockerhost}:8085/elixir/login"]
+redirect-uris: ["http://localhost:8085/elixir/login"]
 token-endpoint-auth-method: "client_secret_basic"
 scope: ["openid", "profile", "email", "ga4gh_passport_v1", "eduperson_entitlement"]
 grant-types: ["authorization_code"]
-post-logout-redirect-uris: ["https://${DOCKERHOST:-dockerhost}:8085/elixir/login"]
+post-logout-redirect-uris: ["http://localhost:8085/elixir/login"]
 ```
 
 Now that everything should be configured properly, return to the root folder of the `starter-kit-lsaai-mock` and run:
