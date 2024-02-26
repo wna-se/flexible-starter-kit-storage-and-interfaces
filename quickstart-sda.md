@@ -224,7 +224,7 @@ To list the filenames currently in the "inbox" queue waiting to be ingested run:
 If `test_file.c4gh` is in the returned list, run:
 
 ```shell
-./sda-admin ingest test_file
+./sda-admin --user  <s3_access_key> ingest test_file
 ```
 
 to trigger ingestion of the file.
