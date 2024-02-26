@@ -24,7 +24,7 @@ services:
 
   auth:
     container_name: auth
-    image: ghcr.io/neicnordic/sensitive-data-archive:v0.2.88-auth
+    image: ghcr.io/neicnordic/sensitive-data-archive:v0.2.94-auth
     depends_on:
       credentials:
         condition: service_completed_successfully
@@ -63,7 +63,7 @@ services:
       interval: 5s
       timeout: 20s
       retries: 20
-    image: ghcr.io/neicnordic/sensitive-data-archive:v0.2.88-rabbitmq
+    image: ghcr.io/neicnordic/sensitive-data-archive:v0.2.94-rabbitmq
     networks:
       - secure
     ports:
@@ -87,7 +87,7 @@ services:
       interval: 5s
       timeout: 20s
       retries: 20
-    image: ghcr.io/neicnordic/sensitive-data-archive:v0.2.88-postgres
+    image: ghcr.io/neicnordic/sensitive-data-archive:v0.2.94-postgres
     networks:
       - secure
     restart: always
@@ -139,7 +139,7 @@ services:
       - OIDC_CONFIGURATION_URL=http://${DOCKERHOST:-dockerhost}:8080/oidc/.well-known/openid-configuration
     extra_hosts:
       - ${DOCKERHOST:-dockerhost}:host-gateway
-    image: ghcr.io/neicnordic/sensitive-data-archive:v0.2.88-download
+    image: ghcr.io/neicnordic/sensitive-data-archive:v0.2.94-download
     networks:
       - public
       - secure
@@ -170,7 +170,7 @@ services:
       - BROKER_USER=${finalize_BROKER_USER}
       - DB_PASSWORD=${finalize_DB_PASSWORD}
       - DB_USER=${finalize_DB_USER}
-    image: ghcr.io/neicnordic/sensitive-data-archive:v0.2.88
+    image: ghcr.io/neicnordic/sensitive-data-archive:v0.2.94
     networks:
       - secure
     restart: always
@@ -196,7 +196,7 @@ services:
       - BROKER_USER=${ingest_BROKER_USER}
       - DB_PASSWORD=${ingest_DB_PASSWORD}
       - DB_USER=${ingest_DB_USER}
-    image: ghcr.io/neicnordic/sensitive-data-archive:v0.2.88
+    image: ghcr.io/neicnordic/sensitive-data-archive:v0.2.94
     networks:
       - secure
     restart: always
@@ -222,7 +222,7 @@ services:
       - BROKER_USER=${mapper_BROKER_USER}
       - DB_PASSWORD=${mapper_DB_PASSWORD}
       - DB_USER=${mapper_DB_USER}
-    image: ghcr.io/neicnordic/sensitive-data-archive:v0.2.88
+    image: ghcr.io/neicnordic/sensitive-data-archive:v0.2.94
     networks:
       - secure
     restart: always
@@ -248,7 +248,7 @@ services:
       - BROKER_USER=${verify_BROKER_USER}
       - DB_PASSWORD=${verify_DB_PASSWORD}
       - DB_USER=${verify_DB_USER}
-    image: ghcr.io/neicnordic/sensitive-data-archive:v0.2.88
+    image: ghcr.io/neicnordic/sensitive-data-archive:v0.2.94
     networks:
       - secure
     restart: always
@@ -277,7 +277,7 @@ services:
       - SERVER_JWTPUBKEYURL=http://${DOCKERHOST:-dockerhost}:8080/oidc/jwk
     extra_hosts:
       - ${DOCKERHOST:-dockerhost}:host-gateway
-    image: ghcr.io/neicnordic/sensitive-data-archive:v0.2.88
+    image: ghcr.io/neicnordic/sensitive-data-archive:v0.2.94
     networks:
       - public
       - secure
