@@ -14,25 +14,11 @@ no further editing to the above files is required for running the stack locally.
 
 ## Starting the full stack with LS-AAI-mock
 
-To bootstrap the *full stack* of `storage-and-interfaces` services use
-the file `docker-compose.yml`. Note that this requires a running [`LS-AAI-mock`](https://github.com/GenomicDataInfrastructure/starter-kit-lsaai-mock) service. To configure the LS-AAI-mock service follow the instructions below.
-
-Export the variable `DOCKERHOST` with either `$HOSTNAME` or `localhost` unless you want to edit the hosts file as shown below.
-
-```shell
-sudo sh -c "echo '127.0.0.1 dockerhost' >>/etc/hosts"
-```
+To bootstrap the *full stack* of `storage-and-interfaces` services use the file `docker-compose.yml`. Note that this requires a running [`LS-AAI-mock`](https://github.com/GenomicDataInfrastructure/starter-kit-lsaai-mock) service. To configure the LS-AAI-mock service follow the instructions below.
 
 First clone the [startet-kit-lsaai-mock](https://github.com/GenomicDataInfrastructure/starter-kit-lsaai-mock) repo.
 
-Under its root folder, change the first two lines of the file `configuration/aai-mock/application.properties` to:
-
-```conf
-main.oidc.issuer.url=http://${DOCKERHOST}:8080/oidc/
-web.baseURL=https://${DOCKERHOST}:8080/oidc
-```
-
-and then add the `sda-auth` client by creating a file `configuration/aai-mock/clients/client1.yaml` with the following contents:
+Add the `sda-auth` client by creating a file `configuration/aai-mock/clients/client1.yaml` with the following contents:
 
 ```ini
 client-name: "auth"
@@ -45,13 +31,15 @@ grant-types: ["authorization_code"]
 post-logout-redirect-uris: ["http://localhost:8085/elixir/login"]
 ```
 
-Now that everything should be configured properly, return to the root folder of the `starter-kit-lsaai-mock` and run:
+Now that everything should be configured properly, from the root folder of the `starter-kit-lsaai-mock` run:
 
 ```shell
 docker compose up -d
 ```
 
-Lastly, return to the root of the `starter-kit-storage-and-interfaces` folder and run:
+## Starting storage-and-interfaces with LS-AAI-mock
+
+From the root of the `starter-kit-storage-and-interfaces` folder and run:
 
 ```shell
 docker compose up -d
