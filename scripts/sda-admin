@@ -10,8 +10,8 @@ myself=$0
 
 MQ_CREDENTIALS=${MQ_CREDENTIALS-test:test}		# --mq-credentials user:pass
 MQ_URL=${MQ_URL-http://localhost:15672}			# --mq-url URL
-MQ_EXCHANGE_PREFIX=${MQ_EXCHANGE_PREFIX-sda}		# --mq-exchange-prefix string
-MQ_QUEUE_PREFIX=${MQ_QUEUE_PREFIX-gdi}			# --mq-queue-prefix string
+MQ_EXCHANGE=${MQ_EXCHANGE-sda}		# --mq-exchange string
+MQ_VHOST=${MQ_VHOST-sda}			# --mq-vhost string
 
 SDA_CONFIG=${SDA_CONFIG-s3cmd.conf}			# --sda-config pathname
 SDA_KEY=${SDA_KEY-crypt4gh_key.pub}			# --sda-key pathname
@@ -502,7 +502,7 @@ accession () {
 				del(.filesize,.operation) |
 				tojson
 			) |
-			.routing_key = "accessionIDs" |
+			.routing_key = "accession" |
 			del(.payload_bytes) |
 			@base64'
 	done | publish
@@ -648,8 +648,8 @@ usage_general () {
 	Global options:
 	    --mq-credentials user:pass	MQ credentials			Currently: $MQ_CREDENTIALS
 	    --mq-url URL		MQ URL				Currently: $MQ_URL
-	    --mq-exchange-prefix	Prefix for MQ exchanges		Currently: $MQ_EXCHANGE_PREFIX
-	    --mq-queue-prefix		Prefix for MQ queues		Currently: $MQ_QUEUE_PREFIX
+	    --mq-exchange	MQ exchange		Currently: $MQ_EXCHANGE
+	    --mq-vhost		MQ vhost		Currently: $MQ_VHOST
 	    --sda-cli pathname		Path for "sda-cli" executable	Currently: $SDA_CLI
 	    --sda-config pathname	SDA S3 configuration file	Currently: $SDA_CONFIG
 	    --sda-key pathname		SDA CRYPT4GH public key file	Currently: $SDA_KEY
@@ -680,7 +680,7 @@ usage_general () {
 
 	Environment variables:
 
-	    MQ_CREDENTIALS, MQ_URL, MQ_EXCHANGE_PREFIX, MQ_QUEUE_PREFIX,
+	    MQ_CREDENTIALS, MQ_URL, MQ_EXCHANGE, MQ_VHOST,
 	    SDA_CLI, SDA_CONFIG, SDA_KEY, S3_ACCESS_KEY
 
 	        These variables corresponds to the similarly named
@@ -893,11 +893,11 @@ while true; do
 		--mq-url)
 			MQ_URL=$2
 			;;
-		--mq-exchange-prefix)
-			MQ_EXCHANGE_PREFIX=$2
+		--mq-exchange)
+			MQ_EXCHANGE=$2
 			;;
-		--mq-queue-prefix)
-			MQ_QUEUE_PREFIX=$2
+		--mq-vhost)
+			MQ_VHOST=$2
 			;;
 		--sda-cli)
 			SDA_CLI=$2
@@ -922,8 +922,8 @@ while true; do
 done
 
 url_api=$MQ_URL/api
-url_exchanges=$url_api/exchanges/$MQ_QUEUE_PREFIX/$MQ_EXCHANGE_PREFIX
-url_queues=$url_api/queues/$MQ_QUEUE_PREFIX
+url_exchanges=$url_api/exchanges/$MQ_VHOST/$MQ_EXCHANGE
+url_queues=$url_api/queues/$MQ_VHOST
 
 # Handle S3_ACCESS_KEY.
 #

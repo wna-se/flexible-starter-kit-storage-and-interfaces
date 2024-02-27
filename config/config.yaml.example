@@ -11,20 +11,12 @@ archive:
   bucket: "archive"
   chunksize: 32
 
-aws:
-  url: "http://s3:9000"
-  readypath: "/minio/health/ready"
-  accessKey: "access"
-  secretKey: "secretkey"
-  bucket: "inbox"
-  region: "us-east-1"
-
 broker:
   host: "rabbitmq"
   port: 5672
   user: ""
   password: ""
-  vhost: "gdi"
+  vhost: "sda"
   queue: ""
   exchange: "sda"
   routingKey: ""
@@ -34,14 +26,13 @@ broker:
 c4gh:
   passphrase: "c4ghpass"
   filepath: "/shared/c4gh.sec.pem"
-  backupPubKey: "/shared/c4gh.pub.pem"
 
 db:
   host: "postgres"
   port: 5432
   user: ""
   password: ""
-  database: "lega"
+  database: "sda"
   sslmode: "disable"
 
 inbox:
@@ -54,23 +45,17 @@ inbox:
   chunksize: 32
 
 log:
-  level: "debug"
+  level: "info"
   format: "json"
 
 oidc:
   # oidc configuration API must have values for "userinfo_endpoint" and "jwks_uri"
   cacert: "/shared/cert/ca.crt"
-  configuration:
-    url: "http://aai-mock:8080/oidc/.well-known/openid-configuration"
   trusted:
     iss: "/iss.json"
 
 schema:
   type: isolated
-
-server:
-  jwtpubkeypath: "/shared/keys/pub/"
-  jwtpubkeyurl: ""
 
 session:
   # session key expiration time in seconds

@@ -9,60 +9,49 @@ cp ./config/config.yaml.example ./config/config.yaml
 cp ./config/iss.json.example ./config/iss.json
 cp ./.env.example ./.env
 ```
+
 no further editing to the above files is required for running the stack locally.
 
 ## Starting the full stack with LS-AAI-mock
 
-To bootstrap the *full stack* of `storage-and-interfaces` services use
-the file `docker-compose.yml`. Note that this requires a running [`LS-AAI-mock`](https://github.com/GenomicDataInfrastructure/starter-kit-lsaai-mock) service. To configure the LS-AAI-mock service follow the instructions below.
-
-Add the following line to `/etc/hosts` file:
-
-```
-127.0.0.1 aai-mock
-```
+To bootstrap the *full stack* of `storage-and-interfaces` services use the file `docker-compose.yml`. Note that this requires a running [`LS-AAI-mock`](https://github.com/GenomicDataInfrastructure/starter-kit-lsaai-mock) service. To configure the LS-AAI-mock service follow the instructions below.
 
 First clone the [startet-kit-lsaai-mock](https://github.com/GenomicDataInfrastructure/starter-kit-lsaai-mock) repo.
 
-Under its root folder, change the first two lines of the file `configuration/aai-mock/application.properties` to:
-
-```
-main.oidc.issuer.url=http://aai-mock:8080/oidc/
-web.baseURL=https://aai-mock:8080/oidc
-```
-
-and then add the `sda-auth` client by creating a file `configuration/aai-mock/clients/client1.yaml` with the following contents:
+Add the `sda-auth` client by creating a file `configuration/aai-mock/clients/client1.yaml` with the following contents:
 
 ```ini
 client-name: "auth"
 client-id: "XC56EL11xx"
 client-secret: "wHPVQaYXmdDHg"
-redirect-uris: ["https://localhost:8085/elixir/login"]
+redirect-uris: ["http://localhost:8085/elixir/login"]
 token-endpoint-auth-method: "client_secret_basic"
-scope: ["openid", "profile", "email", "ga4gh_passport_v1"]
+scope: ["openid", "profile", "email", "ga4gh_passport_v1", "eduperson_entitlement"]
 grant-types: ["authorization_code"]
-post-logout-redirect-uris: ["https://auth:8085/elixir/login"]
+post-logout-redirect-uris: ["http://localhost:8085/elixir/login"]
 ```
 
-Now that everything should be configured properly, return to the root folder of the `starter-kit-storage-and-interfaces` and run:
+Now that everything should be configured properly, from the root folder of the `starter-kit-lsaai-mock` run:
 
 ```shell
 docker compose up -d
 ```
 
-Lastly, *while the `storage-and-interfaces` stack is being deployed*, return to the `starter-kit-lsaai-mock` root folder and run:
+## Starting storage-and-interfaces with LS-AAI-mock
+
+From the root of the `starter-kit-storage-and-interfaces` folder and run:
 
 ```shell
 docker compose up -d
 ```
 
-Note that the above two commands need to be run in that specific order because the `LS-AAI-mock` service expects to connect to an external network `my-app-network` which is created by the `storage-and-interfaces`' compose file.
+Note that the above two commands need to be run in that specific order because the `LS-AAI-mock` compose creates the external network `my-app-network` which is used to communicate with the `aai-mock` service.
 
 ## Starting the stack in standalone demo mode
 
 The file `docker-compose-demo.yml` is used to start the `storage-and-interfaces` services in *demo* mode with an example dataset preloaded and ingested to the sensitive data archive when the deployment is done. This comes with its own python implementation of a mock-oidc in place of LS-AAI and can be run as standalone for demonstration purposes.
 
-The files imported by the data loading script come from here: https://github.com/ga4gh/htsget-refserver/tree/main/data/gcp/gatk-test-data/wgs_bam
+The files imported by the data loading script come from [here:](https://github.com/ga4gh/htsget-refserver/tree/main/data/gcp/gatk-test-data/wgs_bam)
 
 To deploy use the following command:
 

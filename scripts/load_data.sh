@@ -25,7 +25,7 @@ for file in ${FILES}; do
     CORRID=$(
         curl -s -X POST \
             -H "content-type:application/json" \
-            -u test:test http://rabbitmq:15672/api/queues/gdi/inbox/get \
+            -u test:test http://rabbitmq:15672/api/queues/sda/inbox/get \
             -d '{"count":1,"encoding":"auto","ackmode":"ack_requeue_false"}' | jq -r .[0].properties.correlation_id
     )
 
@@ -66,7 +66,7 @@ for file in ${FILES}; do
             '$ARGS.named'
     )
 
-    curl -s -u test:test "http://rabbitmq:15672/api/exchanges/gdi/sda/publish" \
+    curl -s -u test:test "http://rabbitmq:15672/api/exchanges/sda/sda/publish" \
         -H 'Content-Type: application/json;charset=UTF-8' \
         -d "$ingest_body"
 done
@@ -74,7 +74,7 @@ done
 ### wait for ingestion to complete
 echo "waiting for ingestion to complete"
 RETRY_TIMES=0
-until [ "$(curl -s -u test:test http://rabbitmq:15672/api/queues/gdi/verified | jq -r '."messages_ready"')" -eq 4 ]; do
+until [ "$(curl -s -u test:test http://rabbitmq:15672/api/queues/sda/verified | jq -r '."messages_ready"')" -eq 4 ]; do
     echo "waiting for ingestion to complete"
     RETRY_TIMES=$((RETRY_TIMES + 1))
     if [ "$RETRY_TIMES" -eq 40 ]; then
@@ -91,11 +91,22 @@ for file in ${FILES}; do
      ;;
     esac
     I=$((I+1))
-    decrypted_checksums=$(
-        curl -s -u test:test \
+    ## get correlation id from upload message
+    MSG=$(
+        curl -s -X POST \
             -H "content-type:application/json" \
-            -X POST http://rabbitmq:15672/api/queues/gdi/verified/get \
-            -d '{"count":1,"encoding":"auto","ackmode":"ack_requeue_false"}' | jq -r '.[0].payload|fromjson|.decrypted_checksums|tostring'
+            -u test:test http://rabbitmq:15672/api/queues/sda/verified/get \
+            -d '{"count":1,"encoding":"auto","ackmode":"ack_requeue_false"}' | jq -r '.[0]'
+    )
+
+    ## publish message to trigger ingestion
+    properties=$(
+        jq -c -n \
+            --argjson delivery_mode 2 \
+            --arg correlation_id "$(echo "$MSG" | jq -r '.properties.correlation_id')" \
+            --arg content_encoding UTF-8 \
+            --arg content_type application/json \
+            '$ARGS.named'
     )
 
     finalize_payload=$(
@@ -103,8 +114,8 @@ for file in ${FILES}; do
             --arg type accession \
             --arg user dummy@gdi.eu \
             --arg filepath dummy_gdi.eu/"$file.c4gh" \
-            --arg accession_id "EGAF7490000000$I" \
-            --argjson decrypted_checksums "$decrypted_checksums" \
+            --arg accession_id "FILE000000$I" \
+            --argjson decrypted_checksums "$(echo "$MSG"| jq -r '.payload|fromjson|.decrypted_checksums|tostring')" \
             '$ARGS.named|@base64'
     )
 
@@ -113,31 +124,52 @@ for file in ${FILES}; do
             --arg vhost test \
             --arg name sda \
             --argjson properties "$properties" \
-            --arg routing_key "accessionIDs" \
+            --arg routing_key "accession" \
             --arg payload_encoding base64 \
             --arg payload "$finalize_payload" \
             '$ARGS.named'
     )
 
-    curl -s -u test:test "http://rabbitmq:15672/api/exchanges/gdi/sda/publish" \
+    curl -s -u test:test "http://rabbitmq:15672/api/exchanges/sda/sda/publish" \
         -H 'Content-Type: application/json;charset=UTF-8' \
         -d "$finalize_body"
 done
 
+### wait for ingestion to complete
+echo "waiting for finalize to complete"
+RETRY_TIMES=0
+until [ "$(curl -s -u test:test http://rabbitmq:15672/api/queues/sda/completed | jq -r '."messages_ready"')" -eq 4 ]; do
+    echo "waiting for finalize to complete"
+    RETRY_TIMES=$((RETRY_TIMES + 1))
+    if [ "$RETRY_TIMES" -eq 30 ]; then
+        echo "::error::Time out while waiting for finalize to complete"
+        exit 1
+    fi
+    sleep 2
+done
+
 ### Assign file to dataset
+properties=$(
+    jq -c -n \
+        --argjson delivery_mode 2 \
+        --arg content_encoding UTF-8 \
+        --arg content_type application/json \
+        '$ARGS.named'
+)
+
 mappings=$(
     jq -c -n \
         '$ARGS.positional' \
-        --args "EGAF74900000001" \
-        --args "EGAF74900000002" \
-        --args "EGAF74900000003" \
-        --args "EGAF74900000004"
+        --args "FILE0000001" \
+        --args "FILE0000002" \
+        --args "FILE0000003" \
+        --args "FILE0000004"
 )
 
 mapping_payload=$(
     jq -r -c -n \
         --arg type mapping \
-        --arg dataset_id EGAD74900000101 \
+        --arg dataset_id DATASET0001 \
         --argjson accession_ids "$mappings" \
         '$ARGS.named|@base64'
 )
@@ -153,6 +185,6 @@ mapping_body=$(
         '$ARGS.named'
 )
 
-curl -s -u test:test "http://rabbitmq:15672/api/exchanges/gdi/sda/publish" \
+curl -s -u test:test "http://rabbitmq:15672/api/exchanges/sda/sda/publish" \
     -H 'Content-Type: application/json;charset=UTF-8' \
     -d "$mapping_body"

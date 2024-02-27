@@ -1,17 +1,15 @@
 """Mock OAUTH2 aiohttp.web server."""
 
 from aiohttp import web
-from authlib.jose import jwt, JsonWebKey
+from joserfc import jwt
+from joserfc.jwk import ECKey, RSAKey, KeySet
 from typing import Tuple, Union
+import json
 import ssl
 import sys
 from pathlib import Path
 
-HTTP_PROTOCOL = "http"
-OIDC_PORT = 8080
-
 def _set_ssl() -> Union[ssl.SSLContext, None]:
-    global HTTP_PROTOCOL
     here = Path(__file__)
     ssl_cert = here.parent / "shared/cert" / "server.crt"
     ssl_key = here.parent / "shared/cert" / "server.key"
@@ -19,42 +17,45 @@ def _set_ssl() -> Union[ssl.SSLContext, None]:
     if ssl_key.is_file() and ssl_cert.is_file():
         ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
         ssl_context.load_cert_chain(str(ssl_cert), str(ssl_key))
-        ssl_context.check_hostname = False
-        HTTP_PROTOCOL = "https"
     else:
-        ssl_context = None
+        print("No certificates found")
+        sys.exit(1)
 
     return ssl_context
 
 def _generate_token() -> Tuple:
     """Generate RSA Key pair to be used to sign token and the JWT Token itself."""
-    global HTTP_PROTOCOL
     here = Path(__file__)
     key_file = here.parent / "shared/keys" / "jwt.key"
     key_data = ""
     if key_file.is_file():
-        k = open(key_file, "r")
-        key_data = k.read()
-        k.close()
+        key_data = key_file.read_text()
+        ec_key1 = ECKey.import_key(key_data)
+        ec_key2 = ECKey.generate_key("P-384")
+        print("create RSA key")
+        rsa_key1 = RSAKey.generate_key(2048)
     else:
-        sys.exit('JWT signing key missing')
+        print("create EC key")
+        ec_key1 = ECKey.generate_key("P-256")
+        ec_key2 = ECKey.generate_key("P-384")
+        print("create RSA key")
+        rsa_key1 = RSAKey.generate_key(2048)
 
-    key = JsonWebKey.import_key(key_data, {'kty': 'EC'})
     # we set no `exp` and other claims as they are optional in a real scenario these should be set
-    # See available claims here: http://www.iana.org/assignments/jwt/jwt.xhtml
+    # See available claims here: https://www.iana.org/assignments/jwt/jwt.xhtml
     # the important claim is the "authorities"
     header = {
-        "jku": f"{HTTP_PROTOCOL}://oidc:{OIDC_PORT}/jwk",
-        "kid": "EC1",
+        "jku": "https://oidc:8080/jwk",
         "alg": "ES256",
         "typ": "JWT",
+        "kid": ec_key1.thumbprint()
     }
     trusted_payload = {
         "sub": "requester@demo.org",
         "aud": ["aud1", "aud2"],
         "azp": "azp",
         "scope": "openid ga4gh_passport_v1",
-        "iss": f"https://oidc:{OIDC_PORT}/",
+        "iss": "https://oidc:8080/",
         "exp": 9999999999,
         "iat": 1561621913,
         "jti": "6ad7aa42-3e9c-4833-bd16-765cb80c2102",
@@ -64,21 +65,21 @@ def _generate_token() -> Tuple:
         "aud": ["aud2", "aud3"],
         "azp": "azp",
         "scope": "openid ga4gh_passport_v1",
-        "iss": f"https://oidc:{OIDC_PORT}/",
+        "iss": "https://oidc:8080/",
         "exp": 9999999999,
         "iat": 1561621913,
         "jti": "6ad7aa42-3e9c-4833-bd16-765cb80c2102",
     }
     empty_payload = {
         "sub": "requester@demo.org",
-        "iss": f"https://oidc:{OIDC_PORT}/",
+        "iss": "https://oidc:8080/",
         "exp": 99999999999,
         "iat": 1547794655,
         "jti": "6ad7aa42-3e9c-4833-bd16-765cb80c2102",
     }
     # Craft passports
     passport_terms = {
-        "iss": f"https://oidc:{OIDC_PORT}/",
+        "iss": "https://oidc:8080/",
         "sub": "requester@demo.org",
         "ga4gh_visa_v1": {
             "type": "AcceptedTermsAndPolicies",
@@ -93,11 +94,11 @@ def _generate_token() -> Tuple:
     }
     # passport for dataset permissions 1
     passport_dataset1 = {
-        "iss": f"https://oidc:{OIDC_PORT}/",
+        "iss": "https://oidc:8080/",
         "sub": "requester@demo.org",
         "ga4gh_visa_v1": {
             "type": "ControlledAccessGrants",
-            "value": "EGAD74900000101",
+            "value": "DATASET0001",
             "source": "https://doi.example/no_org",
             "by": "self",
             "asserted": 1568699331,
@@ -108,7 +109,7 @@ def _generate_token() -> Tuple:
     }
     # passport for dataset permissions 2
     passport_dataset2 = {
-        "iss": "http://demo1.example",
+        "iss": "https://demo1.example",
         "sub": "requester@demo.org",
         "ga4gh_visa_v1": {
             "type": "ControlledAccessGrants",
@@ -122,29 +123,30 @@ def _generate_token() -> Tuple:
         "jti": "9fa600d6-4148-47c1-b708-36c4ba2e980e",
     }
 
-    public_jwk = key.as_dict(is_private=False)
-    private_jwk = dict(key)
+    public_jwk = KeySet([rsa_key1, ec_key1, ec_key2])
+    private_jwk = KeySet([rsa_key1, ec_key1])
+
 
     # token that contains demo dataset and trusted visas
-    trusted_token = jwt.encode(header, trusted_payload, private_jwk).decode("utf-8")
+    trusted_token = jwt.encode(header, trusted_payload, ec_key1)
 
     # token that contains demo dataset and untrusted visas
-    untrusted_token = jwt.encode(header, untrusted_payload, private_jwk).decode("utf-8")
+    untrusted_token = jwt.encode(header, untrusted_payload, ec_key1)
 
     # empty token
-    empty_userinfo = jwt.encode(header, empty_payload, private_jwk).decode("utf-8")
+    empty_userinfo = jwt.encode(header, empty_payload, ec_key1)
 
     # general terms that illustrates another visatype: AcceptedTermsAndPolicies
-    visa_terms_encoded = jwt.encode(header, passport_terms, private_jwk).decode("utf-8")
+    visa_terms_encoded = jwt.encode(header, passport_terms, ec_key1)
 
     # visa that contains demo dataset
-    visa_dataset1_encoded = jwt.encode(header, passport_dataset1, private_jwk).decode("utf-8")
+    visa_dataset1_encoded = jwt.encode(header, passport_dataset1, ec_key1)
 
     # visa that contains demo dataset but issue that is not trusted
-    visa_dataset2_encoded = jwt.encode(header, passport_dataset2, private_jwk).decode("utf-8")
+    visa_dataset2_encoded = jwt.encode(header, passport_dataset2, ec_key1)
 
     return (
-        public_jwk,
+        public_jwk.as_dict(private=False),
         trusted_token,
         empty_userinfo,
         untrusted_token,
@@ -155,14 +157,13 @@ def _generate_token() -> Tuple:
 
 
 async def fixed_response(request: web.Request) -> web.Response:
-    global HTTP_PROTOCOL
     WELL_KNOWN = {
-        "issuer": f"{HTTP_PROTOCOL}://oidc:{OIDC_PORT}",
-        "authorization_endpoint": f"{HTTP_PROTOCOL}://oidc:{OIDC_PORT}/authorize",
-        "registration_endpoint": f"{HTTP_PROTOCOL}://oidc:{OIDC_PORT}/register",
-        "token_endpoint": f"{HTTP_PROTOCOL}://oidc:{OIDC_PORT}/token",
-        "userinfo_endpoint": f"{HTTP_PROTOCOL}://oidc:{OIDC_PORT}/userinfo",
-        "jwks_uri": f"{HTTP_PROTOCOL}://oidc:{OIDC_PORT}/jwk",
+        "issuer": "https://oidc:8080",
+        "authorization_endpoint": "https://oidc:8080/authorize",
+        "registration_endpoint": "https://oidc:8080/register",
+        "token_endpoint": "https://oidc:8080/token",
+        "userinfo_endpoint": "https://oidc:8080/userinfo",
+        "jwks_uri": "https://oidc:8080/jwk",
         "response_types_supported": [
             "code",
             "id_token",
@@ -262,10 +263,7 @@ async def fixed_response(request: web.Request) -> web.Response:
 
 async def jwk_response(request: web.Request) -> web.Response:
     """Mock JSON Web Key server."""
-    keys = [DATA[0]]
-    keys[0]["kid"] = "EC1"
-    data = {"keys": keys}
-    return web.json_response(data)
+    return web.json_response(DATA[0])
 
 
 async def tokens_response(request: web.Request) -> web.Response:
@@ -306,4 +304,4 @@ def init() -> web.Application:
 if __name__ == "__main__":
     ssl_context = _set_ssl()
     DATA = _generate_token()
-    web.run_app(init(), port=OIDC_PORT, ssl_context=ssl_context)
+    web.run_app(init(), port=8080, ssl_context=ssl_context)

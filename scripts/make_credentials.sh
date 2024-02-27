@@ -1,28 +1,24 @@
 #!/bin/sh
 
+set -e
+
 C4GH_VERSION="1.7.3"
 
 apt-get -o DPkg::Lock::Timeout=60 update >/dev/null
 apt-get -o DPkg::Lock::Timeout=60 install -y curl jq postgresql-client openssl >/dev/null
+
+pip install --upgrade pip > /dev/null
+pip install aiohttp Authlib joserfc requests > /dev/null
 
 for n in download finalize inbox ingest mapper sync verify; do
     echo "creating credentials for: $n"
     ## password and permissions for MQ
     body_data=$(jq -n -c --arg password "$n" --arg tags none '$ARGS.named')
     curl -s -u test:test -X PUT "http://rabbitmq:15672/api/users/$n" -H "content-type:application/json" -d "${body_data}"
-    curl -s -u test:test -X PUT "http://rabbitmq:15672/api/permissions/gdi/$n" -H "content-type:application/json" -d '{"configure":"","write":"sda","read":".*"}'
+    curl -s -u test:test -X PUT "http://rabbitmq:15672/api/permissions/sda/$n" -H "content-type:application/json" -d '{"configure":"","write":"sda","read":".*"}'
 
     ## password and permissions for DB
-    if [ "$n" = inbox ]; then
-        psql -U postgres -h postgres -d lega -c "CREATE ROLE inbox;"
-        psql -U postgres -h postgres -d lega -c "GRANT base, ingest TO inbox;"
-    fi
-
-    if [ "$n" = ingest ]; then
-        psql -U postgres -h postgres -d lega -c "GRANT UPDATE ON local_ega.main TO ingest;"
-    fi
-
-    psql -U postgres -h postgres -d lega -c "ALTER ROLE $n LOGIN PASSWORD '$n';"
+    psql -U postgres -h postgres -d sda -c "ALTER ROLE $n LOGIN PASSWORD '$n';"
 done
 
 # create EC256 key for signing the JWT tokens
@@ -33,7 +29,7 @@ if [ ! -f "/shared/keys/jwt.key" ]; then
     chmod 644 /shared/keys/pub/jwt.pub /shared/keys/jwt.key
 fi
 
-token="$(bash /scripts/sign_jwt.sh ES256 /shared/keys/jwt.key)"
+token="$(python /scripts/sign_jwt.py)"
 
 cat >/shared/s3cfg <<EOD
 [default]
