@@ -34,7 +34,7 @@ services:
       credentials:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "python3", "-c", 'import requests; print(requests.get(url = "https://localhost:8080/jwk", verify="/shared/cert/ca.crt").text)']
+      test: python3 -c 'import requests; print(requests.get(url = "https://localhost:8080/jwk", verify="/shared/cert/ca.crt").text)'
       interval: 5s
       timeout: 10s
       retries: 20
@@ -53,6 +53,9 @@ services:
     extends:
       file: docker-compose.yml
       service: rabbitmq
+    user: rabbitmq
+    healthcheck:
+      test: rabbitmq-diagnostics -q check_running && rabbitmq-diagnostics -q check_local_alarms
 
   postgres:
     extends:

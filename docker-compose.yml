@@ -39,8 +39,8 @@ services:
       - RESIGNJWT=false
       - S3INBOX=http://localhost:8000
       - LOG_LEVEL=debug
-    extra_hosts:
-      - ${DOCKERHOST:-localhost}:host-gateway
+    # extra_hosts:
+    #   - ${DOCKERHOST:-localhost}:host-gateway
     volumes:
       - shared:/shared
     ports:
@@ -137,8 +137,8 @@ services:
       - DB_PASSWORD=${download_DB_PASSWORD}
       - DB_USER=${download_DB_USER}
       - OIDC_CONFIGURATION_URL=http://${DOCKERHOST:-dockerhost}:8080/oidc/.well-known/openid-configuration
-    extra_hosts:
-      - ${DOCKERHOST:-dockerhost}:host-gateway
+    # extra_hosts:
+    #   - ${DOCKERHOST:-dockerhost}:host-gateway
     image: ghcr.io/neicnordic/sensitive-data-archive:v0.2.94-download
     networks:
       - public
@@ -275,8 +275,8 @@ services:
       - DB_PASSWORD=${s3inbox_DB_PASSWORD}
       - DB_USER=${s3inbox_DB_USER}
       - SERVER_JWTPUBKEYURL=http://${DOCKERHOST:-dockerhost}:8080/oidc/jwk
-    extra_hosts:
-      - ${DOCKERHOST:-dockerhost}:host-gateway
+    # extra_hosts:
+    #   - ${DOCKERHOST:-dockerhost}:host-gateway
     image: ghcr.io/neicnordic/sensitive-data-archive:v0.2.94
     networks:
       - public
